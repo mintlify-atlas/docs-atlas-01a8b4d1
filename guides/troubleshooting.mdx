@@ -1,0 +1,528 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for MCP Server MotherDuck
+---
+
+This guide helps you resolve common issues when setting up and using MCP Server MotherDuck.
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="spawn uvx ENOENT" icon="terminal">
+    **Error:**
+    ```
+    Error: spawn uvx ENOENT
+    ```
+    
+    **Cause:** The MCP client cannot find the `uvx` command in your system PATH.
+    
+    **Solution:** Specify the full path to `uvx` in your configuration.
+    
+    1. Find the full path to `uvx`:
+       ```bash
+       which uvx
+       ```
+       
+       Example output: `/usr/local/bin/uvx` or `/Users/username/.local/bin/uvx`
+    
+    2. Update your MCP configuration with the full path:
+       ```json
+       {
+         "mcpServers": {
+           "DuckDB": {
+             "command": "/usr/local/bin/uvx",
+             "args": ["mcp-server-motherduck", "--db-path", ":memory:", "--read-write"]
+           }
+         }
+       }
+       ```
+    
+    **Alternative:** Install `uv` if not already installed:
+    ```bash
+    # Using pip
+    pip install uv
+    
+    # Using Homebrew (macOS)
+    brew install uv
+    ```
+  </Accordion>
+
+  <Accordion title="File Locked / Database is Locked" icon="lock">
+    **Error:**
+    ```
+    Error: database is locked
+    Error: cannot open database file: file is locked
+    ```
+    
+    **Cause:** Another process has a write lock on the database file, or ephemeral connections are disabled.
+    
+    **Solution 1:** Enable ephemeral connections (default for read-only):
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "/path/to/your.duckdb"
+            // ephemeral connections are enabled by default
+          ]
+        }
+      }
+    }
+    ```
+    
+    **Solution 2:** Check if you're in read-write mode:
+    ```json
+    // If you have --read-write, remove it for concurrent access
+    {
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/path/to/your.duckdb"
+        // Remove --read-write flag
+      ]
+    }
+    ```
+    
+    **Solution 3:** Close other connections to the database:
+    - Check for other MCP servers connected to the same file
+    - Close any DuckDB CLI sessions
+    - Close applications with open connections to the file
+    
+    <Tip>
+      Ephemeral connections are turned on by default for read-only local files. Make sure you haven't disabled them with `--no-ephemeral-connections`.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="MotherDuck Token Issues" icon="key">
+    **Error:**
+    ```
+    Error: Please set the `motherduck_token` or `MOTHERDUCK_TOKEN` as an environment variable
+    ```
+    
+    **Cause:** MotherDuck token is not configured.
+    
+    **Solution:** Set the token in your MCP configuration:
+    ```json
+    {
+      "mcpServers": {
+        "MotherDuck": {
+          "command": "uvx",
+          "args": ["mcp-server-motherduck", "--db-path", "md:", "--read-write"],
+          "env": {
+            "motherduck_token": "<YOUR_MOTHERDUCK_TOKEN>"
+          }
+        }
+      }
+    }
+    ```
+    
+    **Alternative:** Set as system environment variable:
+    ```bash
+    # macOS/Linux
+    export motherduck_token="your_token_here"
+    
+    # Windows (PowerShell)
+    $env:motherduck_token="your_token_here"
+    ```
+    
+    <Note>
+      The server checks for both `motherduck_token` and `MOTHERDUCK_TOKEN` environment variables (case-insensitive).
+    </Note>
+  </Accordion>
+
+  <Accordion title="Read-Scaling Token Required" icon="shield">
+    **Error:**
+    ```
+    Error: The --read-only flag with MotherDuck requires a read-scaling token.
+    You appear to be using a read/write token. Please use a read-scaling token instead.
+    ```
+    
+    **Cause:** You're using a regular MotherDuck token in read-only mode, which requires a read-scaling token.
+    
+    **Solution 1:** Use read-write mode with your regular token:
+    ```json
+    {
+      "mcpServers": {
+        "MotherDuck": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "md:",
+            "--read-write"  // Add this flag
+          ],
+          "env": {
+            "motherduck_token": "<YOUR_REGULAR_TOKEN>"
+          }
+        }
+      }
+    }
+    ```
+    
+    **Solution 2:** Create and use a read-scaling token:
+    1. Create a read-scaling token in MotherDuck:
+       - Visit [MotherDuck Console](https://app.motherduck.com/)
+       - Go to Settings → Tokens
+       - Create a new read-scaling token
+    
+    2. Use the read-scaling token:
+       ```json
+       {
+         "mcpServers": {
+           "MotherDuck": {
+             "command": "uvx",
+             "args": ["mcp-server-motherduck", "--db-path", "md:"],
+             "env": {
+               "motherduck_token": "<YOUR_READ_SCALING_TOKEN>"
+             }
+           }
+         }
+       }
+       ```
+    
+    <Tip>
+      Read-scaling tokens provide read-only access and are optimized for analytics workloads. Learn more in the [MotherDuck documentation](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#read-scaling-tokens).
+    </Tip>
+  </Accordion>
+
+  <Accordion title="In-Memory Database Requires --read-write" icon="memory">
+    **Error:**
+    ```
+    Error: In-memory databases require the --read-write flag
+    ```
+    
+    **Cause:** DuckDB doesn't support read-only mode for in-memory databases (`:memory:`).
+    
+    **Solution:** Add the `--read-write` flag:
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", ":memory:",
+            "--read-write"  // Required for :memory:
+          ]
+        }
+      }
+    }
+    ```
+    
+    <Note>
+      In-memory databases are temporary by nature, so write access doesn't pose the same risks as persistent databases.
+    </Note>
+  </Accordion>
+
+  <Accordion title="S3 Connection Issues" icon="cloud">
+    **Error:**
+    ```
+    Error: Failed to attach S3 database
+    Error: Unable to connect to S3 endpoint
+    ```
+    
+    **Cause:** Missing AWS credentials or incorrect S3 configuration.
+    
+    **Solution:** Provide AWS credentials in environment variables:
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB S3": {
+          "command": "uvx",
+          "args": ["mcp-server-motherduck", "--db-path", "s3://bucket/path.duckdb"],
+          "env": {
+            "AWS_ACCESS_KEY_ID": "<YOUR_ACCESS_KEY>",
+            "AWS_SECRET_ACCESS_KEY": "<YOUR_SECRET_KEY>",
+            "AWS_DEFAULT_REGION": "us-east-1"
+          }
+        }
+      }
+    }
+    ```
+    
+    **For IAM roles/session tokens:**
+    ```json
+    {
+      "env": {
+        "AWS_SESSION_TOKEN": "<YOUR_SESSION_TOKEN>",
+        "AWS_DEFAULT_REGION": "us-east-1"
+      }
+    }
+    ```
+    
+    **Troubleshooting checklist:**
+    - [ ] Verify S3 bucket exists and is accessible
+    - [ ] Check AWS credentials are correct
+    - [ ] Ensure IAM permissions allow S3 access
+    - [ ] Verify S3 bucket region matches `AWS_DEFAULT_REGION`
+    - [ ] Check S3 path is correct: `s3://bucket-name/path/to/file.duckdb`
+  </Accordion>
+
+  <Accordion title="Query Timeout" icon="clock">
+    **Error:**
+    ```
+    Error: Query execution timed out after X seconds
+    ```
+    
+    **Cause:** Query exceeded the configured timeout limit.
+    
+    **Solution 1:** Increase the timeout:
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "/path/to/db.duckdb",
+            "--query-timeout", "120"  // 120 seconds
+          ]
+        }
+      }
+    }
+    ```
+    
+    **Solution 2:** Disable timeout (use with caution):
+    ```json
+    {
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/path/to/db.duckdb",
+        "--query-timeout", "-1"  // Disable timeout
+      ]
+    }
+    ```
+    
+    **Solution 3:** Optimize the query:
+    - Add indexes to frequently queried columns
+    - Use LIMIT clause to reduce result set size
+    - Filter data earlier in the query
+    - Check query execution plan with EXPLAIN
+  </Accordion>
+
+  <Accordion title="Results Truncated" icon="scissors">
+    **Warning:**
+    ```
+    Results limited to 1,024 rows. Query returned more data.
+    Results limited to X rows due to 50KB output size limit.
+    ```
+    
+    **Cause:** Query results exceed configured limits.
+    
+    **Solution:** Adjust result limits:
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "/path/to/db.duckdb",
+            "--max-rows", "5000",     // Increase row limit
+            "--max-chars", "100000"   // Increase character limit
+          ]
+        }
+      }
+    }
+    ```
+    
+    <Warning>
+      Very large limits may cause performance issues or memory problems. Use SQL LIMIT clauses in your queries for better control.
+    </Warning>
+    
+    **Alternative:** Use SQL LIMIT in your query:
+    ```sql
+    SELECT * FROM large_table LIMIT 100;
+    ```
+  </Accordion>
+
+  <Accordion title="Cannot Switch Databases" icon="database">
+    **Error:**
+    ```
+    Tool 'switch_database_connection' not found
+    ```
+    
+    **Cause:** Database switching is disabled by default.
+    
+    **Solution:** Enable the `--allow-switch-databases` flag:
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", ":memory:",
+            "--read-write",
+            "--allow-switch-databases"  // Enable database switching
+          ]
+        }
+      }
+    }
+    ```
+    
+    <Warning>
+      Only enable `--allow-switch-databases` in trusted environments. This gives the AI assistant access to any database path it can construct.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Init SQL Execution Failed" icon="code">
+    **Error:**
+    ```
+    Error: Init SQL execution failed: [error details]
+    ```
+    
+    **Cause:** The SQL provided in `--init-sql` contains syntax errors or invalid commands.
+    
+    **Solution 1:** Verify SQL syntax:
+    ```sql
+    -- Test your init SQL in DuckDB CLI first
+    SET enable_external_access = false;
+    SET memory_limit = '4GB';
+    ```
+    
+    **Solution 2:** Check file path (if using file):
+    ```json
+    {
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/path/to/db.duckdb",
+        "--init-sql", "/absolute/path/to/init.sql"  // Use absolute path
+      ]
+    }
+    ```
+    
+    **Solution 3:** Use inline SQL string:
+    ```json
+    {
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/path/to/db.duckdb",
+        "--init-sql", "SET memory_limit = '4GB'; SET enable_external_access = false;"
+      ]
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Migration Issues (v0.x to v1.0+)
+
+<Warning>
+  If you're upgrading from version 0.x, be aware of these breaking changes:
+</Warning>
+
+### Read-Only by Default
+
+**Old behavior (v0.x):** Write access by default  
+**New behavior (v1.0+):** Read-only by default
+
+**Migration:**
+```json
+// Add --read-write to enable write access
+{
+  "args": [
+    "mcp-server-motherduck",
+    "--db-path", ":memory:",
+    "--read-write"  // Add this
+  ]
+}
+```
+
+### Default Database Changed
+
+**Old behavior (v0.x):** Default `--db-path` was `md:`  
+**New behavior (v1.0+):** Default `--db-path` is `:memory:`
+
+**Migration:**
+```json
+// Explicitly specify md: for MotherDuck
+{
+  "args": [
+    "mcp-server-motherduck",
+    "--db-path", "md:",  // Add this explicitly
+    "--read-write"
+  ]
+}
+```
+
+### MotherDuck Read-Only Requires Read-Scaling Token
+
+**New requirement:** MotherDuck connections in read-only mode require a read-scaling token.
+
+**Migration:** Either:
+1. Use `--read-write` with regular token
+2. Create a read-scaling token for read-only access
+
+See [Read-Scaling Token Required](#read-scaling-token-required) above.
+
+## Getting Help
+
+If you're still experiencing issues:
+
+1. **Check the logs:** Look for detailed error messages in your MCP client logs
+2. **Verify configuration:** Ensure your JSON configuration is valid
+3. **Test connection:** Try connecting with a simple in-memory database first
+4. **GitHub Issues:** Search existing issues or create a new one at [github.com/motherduckdb/mcp-server-motherduck](https://github.com/motherduckdb/mcp-server-motherduck/issues)
+
+### Minimal Reproduction Configuration
+
+When reporting issues, try this minimal configuration first:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB Test": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", ":memory:",
+        "--read-write"
+      ]
+    }
+  }
+}
+```
+
+If this works, gradually add your specific configuration options to identify the issue.
+
+## Useful Commands
+
+### Verify Installation
+
+```bash
+# Check if uv is installed
+which uv
+uv --version
+
+# Check if uvx is available
+which uvx
+
+# Test MCP server installation
+uvx mcp-server-motherduck --help
+```
+
+### Test DuckDB Connection
+
+```bash
+# Test with DuckDB CLI
+python -c "import duckdb; print(duckdb.connect(':memory:').execute('SELECT 42').fetchone())"
+```
+
+### Check Environment Variables
+
+```bash
+# macOS/Linux
+env | grep -i motherduck
+env | grep -i aws
+
+# Windows (PowerShell)
+Get-ChildItem Env: | Where-Object {$_.Name -like '*motherduck*'}
+Get-ChildItem Env: | Where-Object {$_.Name -like '*aws*'}
+```
+
+## Resources
+
+- [GitHub Repository](https://github.com/motherduckdb/mcp-server-motherduck)
+- [MotherDuck Documentation](https://motherduck.com/docs/)
+- [DuckDB Documentation](https://duckdb.org/docs/)
+- [MCP Protocol Specification](https://modelcontextprotocol.io/)

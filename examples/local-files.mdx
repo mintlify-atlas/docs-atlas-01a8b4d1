@@ -1,0 +1,527 @@
+---
+title: Local DuckDB Files
+description: Work with local DuckDB database files for offline analytics and concurrent access
+---
+
+## Connecting to Local Files
+
+Local DuckDB files (`.duckdb` extension) provide persistent storage with file-based databases.
+
+### Read-Only Connection (Recommended)
+
+Read-only mode allows concurrent access from multiple processes:
+
+<CodeGroup>
+```json Claude Desktop
+{
+  "mcpServers": {
+    "DuckDB (read-only)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/absolute/path/to/your.duckdb"
+      ]
+    }
+  }
+}
+```
+
+```bash CLI
+claude mcp add --scope user duckdb \
+  --transport stdio \
+  -- uvx mcp-server-motherduck --db-path /absolute/path/to/db.duckdb
+```
+</CodeGroup>
+
+<Note>
+Read-only mode uses ephemeral connections (enabled by default with `--ephemeral-connections`) that don't hold file locks, allowing multiple readers.
+</Note>
+
+### Read-Write Connection
+
+For write operations, enable read-write mode:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (read-write)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/absolute/path/to/your.duckdb",
+        "--read-write"
+      ]
+    }
+  }
+}
+```
+
+<Warning>
+Read-write mode holds an exclusive lock on the database file. Only one read-write connection can be active at a time.
+</Warning>
+
+### Creating New Databases
+
+Create a new DuckDB file automatically when it doesn't exist:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (new)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/path/to/new_database.duckdb",
+        "--read-write"
+      ]
+    }
+  }
+}
+```
+
+The database file will be created on first connection.
+
+## Working with Local Data
+
+### Create Tables
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR, email VARCHAR, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "columns": ["Count"],
+  "columnTypes": ["BIGINT"],
+  "rows": [[0]],
+  "rowCount": 1
+}
+```
+</CodeGroup>
+
+### Insert Data
+
+```sql
+INSERT INTO users (id, name, email) VALUES
+  (1, 'Alice', 'alice@example.com'),
+  (2, 'Bob', 'bob@example.com'),
+  (3, 'Charlie', 'charlie@example.com');
+```
+
+### Query Data
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT * FROM users ORDER BY id"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "columns": ["id", "name", "email", "created_at"],
+  "columnTypes": ["INTEGER", "VARCHAR", "VARCHAR", "TIMESTAMP"],
+  "rows": [
+    [1, "Alice", "alice@example.com", "2024-03-15 10:30:00"],
+    [2, "Bob", "bob@example.com", "2024-03-15 10:30:01"],
+    [3, "Charlie", "charlie@example.com", "2024-03-15 10:30:02"]
+  ],
+  "rowCount": 3
+}
+```
+</CodeGroup>
+
+### Update and Delete
+
+<CodeGroup>
+```sql Update
+UPDATE users 
+SET email = 'alice.new@example.com' 
+WHERE id = 1;
+```
+
+```sql Delete
+DELETE FROM users WHERE id = 3;
+```
+</CodeGroup>
+
+## Importing and Exporting Data
+
+### Import from CSV
+
+```sql
+CREATE TABLE sales AS 
+SELECT * FROM read_csv_auto('/path/to/sales_data.csv');
+```
+
+<Tip>
+DuckDB's `read_csv_auto()` automatically detects column types, delimiters, and headers.
+</Tip>
+
+### Import from Parquet
+
+```sql
+CREATE TABLE events AS 
+SELECT * FROM read_parquet('/path/to/events/*.parquet');
+```
+
+### Import from JSON
+
+```sql
+CREATE TABLE logs AS 
+SELECT * FROM read_json_auto('/path/to/logs.json');
+```
+
+### Export to CSV
+
+```sql
+COPY (SELECT * FROM users WHERE created_at > '2024-01-01') 
+TO '/path/to/export/users.csv' 
+WITH (HEADER, DELIMITER ',');
+```
+
+### Export to Parquet
+
+```sql
+COPY users TO '/path/to/export/users.parquet' (FORMAT PARQUET);
+```
+
+<Note>
+Export operations require `--read-write` mode and may be restricted by `--motherduck-saas-mode`.
+</Note>
+
+### Export to JSON
+
+```sql
+COPY (SELECT * FROM users) TO '/path/to/export/users.json' (FORMAT JSON);
+```
+
+## Switching Between Databases
+
+The `switch_database_connection` tool lets you change databases dynamically.
+
+<Warning>
+Requires `--allow-switch-databases` flag to be enabled when starting the server.
+</Warning>
+
+### Enable Database Switching
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (flexible)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", ":memory:",
+        "--read-write",
+        "--allow-switch-databases"
+      ]
+    }
+  }
+}
+```
+
+### Switch to Existing Database
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "switch_database_connection",
+  "arguments": {
+    "path": "/path/to/another.duckdb"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "message": "Switched to database: /path/to/another.duckdb",
+  "previousDatabase": ":memory:",
+  "currentDatabase": "/path/to/another.duckdb",
+  "readOnly": false
+}
+```
+</CodeGroup>
+
+### Create New Database on Switch
+
+```json
+{
+  "name": "switch_database_connection",
+  "arguments": {
+    "path": "/path/to/new_db.duckdb",
+    "create_if_not_exists": true
+  }
+}
+```
+
+<Note>
+Creating databases requires the server to be started with `--read-write` mode.
+</Note>
+
+### Switch Between Local and In-Memory
+
+<CodeGroup>
+```json To In-Memory
+{
+  "name": "switch_database_connection",
+  "arguments": {
+    "path": ":memory:"
+  }
+}
+```
+
+```json To Local File
+{
+  "name": "switch_database_connection",
+  "arguments": {
+    "path": "/absolute/path/to/database.duckdb"
+  }
+}
+```
+</CodeGroup>
+
+## Concurrent Access Patterns
+
+### Multiple Read-Only Clients
+
+Multiple processes can read from the same file simultaneously:
+
+<CodeGroup>
+```json Client 1 (Read-Only)
+{
+  "command": "uvx",
+  "args": ["mcp-server-motherduck", "--db-path", "/shared/data.duckdb"]
+}
+```
+
+```json Client 2 (Read-Only)
+{
+  "command": "uvx",
+  "args": ["mcp-server-motherduck", "--db-path", "/shared/data.duckdb"]
+}
+```
+</CodeGroup>
+
+### Single Writer, Multiple Readers
+
+One read-write connection alongside multiple read-only connections:
+
+<CodeGroup>
+```json Writer
+{
+  "command": "uvx",
+  "args": [
+    "mcp-server-motherduck",
+    "--db-path", "/shared/data.duckdb",
+    "--read-write"
+  ]
+}
+```
+
+```json Readers
+{
+  "command": "uvx",
+  "args": [
+    "mcp-server-motherduck",
+    "--db-path", "/shared/data.duckdb"
+  ]
+}
+```
+</CodeGroup>
+
+<Warning>
+If a file lock error occurs, ensure `--ephemeral-connections` is enabled (it's on by default) and you're not running multiple read-write connections.
+</Warning>
+
+## Performance Optimization
+
+### Use Absolute Paths
+
+<CodeGroup>
+```json Good
+{
+  "args": ["--db-path", "/home/user/data/analytics.duckdb"]
+}
+```
+
+```json Bad
+{
+  "args": ["--db-path", "./analytics.duckdb"]
+}
+```
+</CodeGroup>
+
+### Persistent vs Ephemeral Connections
+
+<CodeGroup>
+```bash Ephemeral (Default)
+# Releases file lock between queries
+uvx mcp-server-motherduck --db-path /path/to/db.duckdb
+```
+
+```bash Persistent
+# Keeps connection open (faster, but holds lock)
+uvx mcp-server-motherduck --db-path /path/to/db.duckdb --no-ephemeral-connections
+```
+</CodeGroup>
+
+### Initialize with SQL
+
+Run setup SQL on connection:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/path/to/db.duckdb",
+        "--read-write",
+        "--init-sql", "PRAGMA threads=4; PRAGMA memory_limit='4GB';"
+      ]
+    }
+  }
+}
+```
+
+Or use an SQL file:
+
+```bash
+--init-sql /path/to/init.sql
+```
+
+## Real-World Examples
+
+### Analytics Dashboard Backend
+
+```json
+{
+  "mcpServers": {
+    "Analytics DB": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/data/analytics.duckdb",
+        "--max-rows", "5000",
+        "--query-timeout", "30"
+      ]
+    }
+  }
+}
+```
+
+### ETL Pipeline Database
+
+```json
+{
+  "mcpServers": {
+    "ETL Staging": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/etl/staging.duckdb",
+        "--read-write",
+        "--init-sql", "PRAGMA temp_directory='/fast/ssd/temp';"
+      ]
+    }
+  }
+}
+```
+
+### Local Data Exploration
+
+```json
+{
+  "mcpServers": {
+    "Data Explorer": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", ":memory:",
+        "--read-write",
+        "--allow-switch-databases"
+      ]
+    }
+  }
+}
+```
+
+Now you can dynamically load different datasets:
+
+```sql
+-- Load dataset 1
+CREATE TABLE sales AS SELECT * FROM read_csv_auto('/datasets/sales.csv');
+
+-- Switch to different database
+-- Use switch_database_connection tool
+
+-- Load dataset 2
+CREATE TABLE customers AS SELECT * FROM read_parquet('/datasets/customers.parquet');
+```
+
+## Troubleshooting
+
+### File Locked Error
+
+**Error**: "Database file is locked" or "spawn uvx ENOENT"
+
+**Solution**:
+1. Ensure `--ephemeral-connections` is enabled (default)
+2. Close other read-write connections to the file
+3. Check that no other process has the file open
+
+### Permission Denied
+
+**Error**: "Permission denied" when accessing database file
+
+**Solution**: Verify file permissions and that the path is accessible:
+
+```bash
+ls -la /path/to/database.duckdb
+chmod 644 /path/to/database.duckdb  # If needed
+```
+
+### Relative Path Error
+
+**Error**: "Relative paths are not allowed"
+
+**Solution**: Use absolute paths:
+
+```json
+// Bad
+"--db-path", "./data.duckdb"
+
+// Good  
+"--db-path", "/home/user/project/data.duckdb"
+```
+
+### Database Does Not Exist
+
+**Error**: "Database file does not exist"
+
+**Solution**: Either create the file first or use `create_if_not_exists` when switching:
+
+```json
+{
+  "name": "switch_database_connection",
+  "arguments": {
+    "path": "/path/to/new.duckdb",
+    "create_if_not_exists": true
+  }
+}
+```

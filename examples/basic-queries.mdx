@@ -1,0 +1,408 @@
+---
+title: Basic SQL Queries
+description: Learn how to execute SQL queries and explore database schemas using MCP Server MotherDuck
+---
+
+## Query Execution
+
+The `execute_query` tool executes SQL queries using DuckDB's SQL dialect and returns results in JSON format.
+
+### Simple SELECT Query
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT 1 as num, 'hello' as greeting"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "columns": ["num", "greeting"],
+  "columnTypes": ["INTEGER", "VARCHAR"],
+  "rows": [[1, "hello"]],
+  "rowCount": 1
+}
+```
+</CodeGroup>
+
+### INSERT Data
+
+<Note>
+INSERT, UPDATE, DELETE, and CREATE operations require the server to be started with `--read-write` flag.
+</Note>
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "INSERT INTO users VALUES (1, 'Alice', 'alice@example.com')"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "columns": ["Count"],
+  "columnTypes": ["BIGINT"],
+  "rows": [[1]],
+  "rowCount": 1
+}
+```
+</CodeGroup>
+
+### UPDATE Data
+
+```json
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "UPDATE users SET email = 'newemail@example.com' WHERE id = 1"
+  }
+}
+```
+
+### DELETE Data
+
+```json
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "DELETE FROM users WHERE id = 1"
+  }
+}
+```
+
+## Exploring Database Schemas
+
+### List All Databases
+
+The `list_databases` tool shows all available databases in your connection.
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "list_databases",
+  "arguments": {}
+}
+```
+
+```json Response
+{
+  "success": true,
+  "databases": [
+    {"name": "memory", "type": "duckdb"},
+    {"name": "my_db", "type": "duckdb"}
+  ],
+  "databaseCount": 2
+}
+```
+</CodeGroup>
+
+<Note>
+The system excludes internal databases (`system` and `temp`) from results.
+</Note>
+
+### List Tables and Views
+
+The `list_tables` tool shows all tables and views in a database.
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "list_tables",
+  "arguments": {
+    "database": "my_db"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "database": "my_db",
+  "schema": "all",
+  "tables": [
+    {
+      "schema": "main",
+      "name": "users",
+      "type": "table",
+      "comment": null
+    },
+    {
+      "schema": "main",
+      "name": "orders",
+      "type": "table",
+      "comment": "Customer orders"
+    },
+    {
+      "schema": "main",
+      "name": "active_users",
+      "type": "view",
+      "comment": null
+    }
+  ],
+  "tableCount": 2,
+  "viewCount": 1
+}
+```
+</CodeGroup>
+
+#### Filter by Schema
+
+```json
+{
+  "name": "list_tables",
+  "arguments": {
+    "database": "my_db",
+    "schema": "main"
+  }
+}
+```
+
+#### Use Current Database
+
+Omit the `database` parameter to use the current database:
+
+```json
+{
+  "name": "list_tables",
+  "arguments": {}
+}
+```
+
+### List Table Columns
+
+The `list_columns` tool shows detailed column information including types and constraints.
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "list_columns",
+  "arguments": {
+    "table": "users",
+    "database": "my_db"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "database": "my_db",
+  "schema": "main",
+  "table": "users",
+  "objectType": "table",
+  "columns": [
+    {
+      "name": "id",
+      "type": "INTEGER",
+      "nullable": false,
+      "comment": null
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR",
+      "nullable": true,
+      "comment": null
+    },
+    {
+      "name": "email",
+      "type": "VARCHAR",
+      "nullable": true,
+      "comment": "User email address"
+    },
+    {
+      "name": "created_at",
+      "type": "TIMESTAMP",
+      "nullable": true,
+      "comment": null
+    }
+  ],
+  "columnCount": 4
+}
+```
+</CodeGroup>
+
+## Real-World Query Examples
+
+### Aggregations
+
+Count total rows and calculate averages:
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT COUNT(*) as total_users, AVG(age) as avg_age FROM users"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "columns": ["total_users", "avg_age"],
+  "columnTypes": ["BIGINT", "DOUBLE"],
+  "rows": [[1523, 34.2]],
+  "rowCount": 1
+}
+```
+</CodeGroup>
+
+### Filtering and Sorting
+
+```sql
+SELECT name, email, created_at 
+FROM users 
+WHERE created_at > '2024-01-01' 
+ORDER BY created_at DESC 
+LIMIT 10
+```
+
+### GROUP BY with HAVING
+
+```sql
+SELECT 
+  country, 
+  COUNT(*) as user_count,
+  AVG(purchase_amount) as avg_purchase
+FROM users
+JOIN purchases ON users.id = purchases.user_id
+GROUP BY country
+HAVING COUNT(*) > 100
+ORDER BY user_count DESC
+```
+
+### JOINs Across Tables
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT u.name, COUNT(o.id) as order_count FROM users u LEFT JOIN orders o ON u.id = o.user_id GROUP BY u.name ORDER BY order_count DESC LIMIT 5"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "columns": ["name", "order_count"],
+  "columnTypes": ["VARCHAR", "BIGINT"],
+  "rows": [
+    ["Alice", 42],
+    ["Bob", 38],
+    ["Charlie", 35],
+    ["Diana", 31],
+    ["Eve", 28]
+  ],
+  "rowCount": 5
+}
+```
+</CodeGroup>
+
+### Window Functions
+
+```sql
+SELECT 
+  name,
+  sales_amount,
+  ROW_NUMBER() OVER (ORDER BY sales_amount DESC) as rank,
+  SUM(sales_amount) OVER (ORDER BY sales_amount DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as running_total
+FROM sales_people
+LIMIT 10
+```
+
+## Query Result Limits
+
+<Warning>
+Query results are automatically limited to prevent excessive data transfer.
+</Warning>
+
+### Default Limits
+
+- **Max rows**: 1,024 rows (configurable with `--max-rows`)
+- **Max characters**: 50,000 characters (configurable with `--max-chars`)
+
+### Truncated Results
+
+When results exceed limits, you'll receive a truncation warning:
+
+```json
+{
+  "success": true,
+  "columns": ["id", "name"],
+  "rows": [[1, "Alice"], [2, "Bob"], ...],
+  "rowCount": 1024,
+  "truncated": true,
+  "warning": "Results limited to 1,024 rows. Query returned more data."
+}
+```
+
+<Tip>
+To work with large datasets:
+- Use `LIMIT` clauses in your SQL
+- Filter data with `WHERE` conditions
+- Use aggregations instead of returning raw rows
+- Increase limits when starting the server: `--max-rows 10000 --max-chars 100000`
+</Tip>
+
+## Error Handling
+
+### Query Errors
+
+Errors return a structured JSON response:
+
+<CodeGroup>
+```json Tool Call (Invalid)
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT * FROM nonexistent_table"
+  }
+}
+```
+
+```json Error Response
+{
+  "success": false,
+  "error": "Catalog Error: Table with name nonexistent_table does not exist!",
+  "errorType": "CatalogException"
+}
+```
+</CodeGroup>
+
+### Syntax Errors
+
+```json
+{
+  "success": false,
+  "error": "Parser Error: syntax error at or near 'FORM'",
+  "errorType": "ParserException"
+}
+```
+
+### Read-Only Mode Errors
+
+Write operations fail when server runs in read-only mode (default):
+
+```json
+{
+  "success": false,
+  "error": "Cannot execute statement of type INSERT in read-only mode",
+  "errorType": "PermissionException"
+}
+```
+
+<Tip>
+Start the server with `--read-write` to enable INSERT, UPDATE, DELETE, and CREATE operations.
+</Tip>

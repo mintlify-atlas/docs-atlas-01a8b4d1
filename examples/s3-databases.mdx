@@ -1,0 +1,611 @@
+---
+title: S3-Hosted Databases
+description: Query DuckDB databases stored in Amazon S3 for cloud-native analytics
+---
+
+## Connecting to S3 Databases
+
+DuckDB can directly query databases stored in S3, providing cloud-native analytics without downloading files.
+
+### Basic S3 Connection
+
+<CodeGroup>
+```json Claude Desktop
+{
+  "mcpServers": {
+    "DuckDB (S3)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "s3://your-bucket/path/to/database.duckdb"
+      ],
+      "env": {
+        "AWS_ACCESS_KEY_ID": "your_access_key",
+        "AWS_SECRET_ACCESS_KEY": "your_secret_key",
+        "AWS_DEFAULT_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
+```bash CLI
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_DEFAULT_REGION=us-east-1
+
+claude mcp add --scope user duckdb-s3 \
+  --transport stdio \
+  -- uvx mcp-server-motherduck --db-path s3://bucket/path/db.duckdb
+```
+</CodeGroup>
+
+<Note>
+S3 databases are automatically attached as **read-only** to prevent accidental modifications to cloud storage.
+</Note>
+
+## AWS Credential Configuration
+
+### Static Credentials
+
+Provide AWS access keys directly:
+
+```json
+{
+  "env": {
+    "AWS_ACCESS_KEY_ID": "AKIAIOSFODNN7EXAMPLE",
+    "AWS_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    "AWS_DEFAULT_REGION": "us-east-1"
+  }
+}
+```
+
+### IAM Roles and Session Tokens
+
+For temporary credentials from IAM roles, SSO, or EC2 instance profiles:
+
+```json
+{
+  "env": {
+    "AWS_SESSION_TOKEN": "FwoGZXIvYXdzEBYaD...",
+    "AWS_DEFAULT_REGION": "us-west-2"
+  }
+}
+```
+
+<Tip>
+When `AWS_SESSION_TOKEN` is present, DuckDB uses the `credential_chain` provider to automatically fetch credentials from:
+- Environment variables
+- AWS configuration files (`~/.aws/credentials`)
+- IAM instance profiles (EC2)
+- AWS SSO
+- IAM roles
+</Tip>
+
+### Environment Variables Reference
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AWS_ACCESS_KEY_ID` | For static credentials | AWS access key |
+| `AWS_SECRET_ACCESS_KEY` | For static credentials | AWS secret key |
+| `AWS_SESSION_TOKEN` | For temporary credentials | Session token for IAM roles |
+| `AWS_DEFAULT_REGION` | Recommended | AWS region (defaults to `us-east-1`) |
+
+## Querying S3 Databases
+
+### Basic Queries
+
+<CodeGroup>
+```json Simple SELECT
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT 1 as num"
+  }
+}
+```
+
+```json Show Tables
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SHOW TABLES"
+  }
+}
+```
+</CodeGroup>
+
+### List Tables in S3 Database
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "list_tables",
+  "arguments": {
+    "database": "s3db"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "database": "s3db",
+  "schema": "all",
+  "tables": [
+    {
+      "schema": "main",
+      "name": "sales",
+      "type": "table",
+      "comment": null
+    },
+    {
+      "schema": "main",
+      "name": "customers",
+      "type": "table",
+      "comment": null
+    }
+  ],
+  "tableCount": 2,
+  "viewCount": 0
+}
+```
+</CodeGroup>
+
+### Query S3 Database Tables
+
+```sql
+SELECT 
+  product_id,
+  SUM(quantity) as total_quantity,
+  SUM(amount) as total_revenue
+FROM s3db.main.sales
+WHERE sale_date >= '2024-01-01'
+GROUP BY product_id
+ORDER BY total_revenue DESC
+LIMIT 10
+```
+
+## Read-Only Operations
+
+S3 databases are attached with `READ_ONLY` flag to protect cloud data.
+
+### Allowed Operations
+
+<CodeGroup>
+```sql SELECT
+SELECT * FROM s3db.main.sales WHERE region = 'US';
+```
+
+```sql Aggregations
+SELECT COUNT(*), AVG(amount) FROM s3db.main.sales;
+```
+
+```sql JOINs
+SELECT s.*, c.customer_name
+FROM s3db.main.sales s
+JOIN s3db.main.customers c ON s.customer_id = c.id;
+```
+</CodeGroup>
+
+### Blocked Operations
+
+Write operations will fail:
+
+<CodeGroup>
+```json Attempted Write
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "CREATE TABLE s3db.main.new_table (id INT)"
+  }
+}
+```
+
+```json Error Response
+{
+  "success": false,
+  "error": "Cannot execute statement of type CREATE in read-only mode",
+  "errorType": "PermissionException"
+}
+```
+</CodeGroup>
+
+<Warning>
+INSERT, UPDATE, DELETE, and CREATE operations are not supported on S3 databases to prevent accidental modifications.
+</Warning>
+
+## S3 Path Formats
+
+### Standard S3 Path
+
+```
+s3://bucket-name/path/to/database.duckdb
+```
+
+### Examples
+
+<CodeGroup>
+```bash Root of Bucket
+s3://my-analytics-bucket/database.duckdb
+```
+
+```bash Nested Path
+s3://company-data/analytics/2024/q1/sales.duckdb
+```
+
+```bash With Region Prefix
+s3://my-bucket/databases/production.duckdb
+```
+</CodeGroup>
+
+## Attaching Multiple S3 Databases
+
+Query multiple S3 databases in a single session:
+
+### Switch Between S3 Databases
+
+<Warning>
+Requires `--allow-switch-databases` flag.
+</Warning>
+
+<CodeGroup>
+```json Initial Connection
+{
+  "command": "uvx",
+  "args": [
+    "mcp-server-motherduck",
+    "--db-path", "s3://bucket1/db1.duckdb",
+    "--allow-switch-databases"
+  ]
+}
+```
+
+```json Switch to Another S3 DB
+{
+  "name": "switch_database_connection",
+  "arguments": {
+    "path": "s3://bucket2/db2.duckdb"
+  }
+}
+```
+</CodeGroup>
+
+### Attach Additional S3 Databases
+
+Without switching, attach additional databases:
+
+```sql
+ATTACH 's3://bucket2/analytics.duckdb' AS analytics_db (READ_ONLY);
+ATTACH 's3://bucket3/warehouse.duckdb' AS warehouse_db (READ_ONLY);
+```
+
+### Query Across Multiple S3 Databases
+
+```sql
+SELECT 
+  'sales' as source,
+  COUNT(*) as record_count
+FROM s3db.main.transactions
+
+UNION ALL
+
+SELECT 
+  'analytics' as source,
+  COUNT(*) as record_count
+FROM analytics_db.main.events
+
+UNION ALL
+
+SELECT 
+  'warehouse' as source,
+  COUNT(*) as record_count
+FROM warehouse_db.main.inventory
+```
+
+## Querying Other S3 Data Formats
+
+Besides DuckDB databases, query raw data files directly from S3:
+
+### S3 Parquet Files
+
+```sql
+SELECT * FROM read_parquet('s3://my-bucket/data/*.parquet')
+WHERE date >= '2024-01-01'
+LIMIT 1000;
+```
+
+### S3 CSV Files
+
+```sql
+SELECT * FROM read_csv_auto('s3://my-bucket/exports/data.csv')
+LIMIT 100;
+```
+
+### S3 JSON Files
+
+```sql
+SELECT * FROM read_json_auto('s3://my-bucket/logs/*.json')
+WHERE event_type = 'error'
+ORDER BY timestamp DESC
+LIMIT 50;
+```
+
+<Tip>
+Querying raw S3 files (Parquet, CSV, JSON) doesn't require the database to exist in S3 - DuckDB reads them directly with its httpfs extension.
+</Tip>
+
+## Hybrid S3 + Local Queries
+
+Combine S3 data with local processing:
+
+### Export S3 Data to Local Database
+
+```sql
+-- Create local copy of S3 data
+CREATE TABLE local_sales AS 
+SELECT * FROM s3db.main.sales 
+WHERE sale_date >= '2024-01-01';
+```
+
+### Join S3 and Local Data
+
+```sql
+-- Attach local database alongside S3
+ATTACH '/local/path/customer_db.duckdb' AS local_db (READ_ONLY);
+
+-- Join across S3 and local
+SELECT 
+  s.order_id,
+  s.amount,
+  c.customer_name,
+  c.segment
+FROM s3db.main.sales s
+JOIN local_db.main.customers c ON s.customer_id = c.id
+WHERE s.sale_date >= CURRENT_DATE - INTERVAL 30 DAYS;
+```
+
+### Aggregate S3 Data Locally
+
+```sql
+-- Process large S3 dataset, store results locally  
+CREATE TABLE daily_summary AS
+SELECT 
+  DATE_TRUNC('day', sale_timestamp) as sale_date,
+  region,
+  COUNT(*) as order_count,
+  SUM(amount) as total_revenue
+FROM s3db.main.sales
+GROUP BY sale_date, region
+ORDER BY sale_date DESC;
+```
+
+## Performance Considerations
+
+### Minimize Data Transfer
+
+<CardGroup cols={2}>
+  <Card title="Use WHERE Clauses" icon="filter">
+    Filter data in S3 before transferring to reduce network usage.
+  </Card>
+  
+  <Card title="Aggregate in S3" icon="calculator">
+    Use GROUP BY and aggregations to summarize before downloading.
+  </Card>
+  
+  <Card title="LIMIT Results" icon="list-ol">
+    Always use LIMIT for exploratory queries.
+  </Card>
+  
+  <Card title="Column Projection" icon="columns">
+    Select only needed columns, not `SELECT *`.
+  </Card>
+</CardGroup>
+
+### Example: Optimized S3 Query
+
+<CodeGroup>
+```sql Bad (Transfers All Data)
+SELECT * FROM s3db.main.large_table;
+```
+
+```sql Good (Filtered & Limited)
+SELECT id, name, amount 
+FROM s3db.main.large_table 
+WHERE date >= '2024-01-01' 
+  AND region = 'US'
+LIMIT 1000;
+```
+</CodeGroup>
+
+## Connection Configuration
+
+The S3 connection is managed internally by the database client:
+
+<Steps>
+  <Step title="Create In-Memory Connection">
+    When connecting to an S3 database, DuckDB creates an in-memory connection first.
+  </Step>
+  
+  <Step title="Load httpfs Extension">
+    The `httpfs` extension is installed and loaded for S3 support.
+  </Step>
+  
+  <Step title="Configure Credentials">
+    AWS credentials are configured using `CREATE SECRET`:
+    
+    ```sql
+    CREATE SECRET IF NOT EXISTS s3_secret (
+      TYPE S3,
+      KEY_ID 'your_access_key',
+      SECRET 'your_secret_key',
+      REGION 'us-east-1'
+    );
+    ```
+  </Step>
+  
+  <Step title="Attach S3 Database">
+    The S3 database is attached as read-only:
+    
+    ```sql
+    ATTACH 's3://bucket/path/db.duckdb' AS s3db (READ_ONLY);
+    USE s3db;
+    ```
+  </Step>
+</Steps>
+
+### Credential Chain Provider
+
+When `AWS_SESSION_TOKEN` is present, DuckDB uses credential chain:
+
+```sql
+CREATE SECRET IF NOT EXISTS s3_secret (
+  TYPE S3,
+  PROVIDER credential_chain,
+  REGION 'us-east-1'
+);
+```
+
+This automatically fetches credentials from:
+1. Environment variables
+2. AWS configuration files
+3. IAM instance profiles (EC2)
+4. IAM roles (ECS, Lambda)
+5. AWS SSO sessions
+
+## Real-World Examples
+
+### Analytics on S3 Data Lake
+
+```json
+{
+  "mcpServers": {
+    "S3 Data Lake": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "s3://company-datalake/analytics/production.duckdb",
+        "--max-rows", "10000"
+      ],
+      "env": {
+        "AWS_SESSION_TOKEN": "...",
+        "AWS_DEFAULT_REGION": "us-west-2"
+      }
+    }
+  }
+}
+```
+
+### Multi-Region S3 Databases
+
+```json
+{
+  "mcpServers": {
+    "Multi-Region Analytics": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "s3://us-data/analytics.duckdb",
+        "--allow-switch-databases"
+      ],
+      "env": {
+        "AWS_ACCESS_KEY_ID": "...",
+        "AWS_SECRET_ACCESS_KEY": "...",
+        "AWS_DEFAULT_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
+Query multiple regions:
+
+```sql
+-- US data
+SELECT 'US' as region, COUNT(*) FROM s3db.main.users;
+
+-- Switch to EU database
+-- Use switch_database_connection to s3://eu-data/analytics.duckdb
+
+-- EU data
+SELECT 'EU' as region, COUNT(*) FROM s3db.main.users;
+```
+
+## Troubleshooting
+
+### Authentication Errors
+
+**Error**: "Failed to attach S3 database: Unable to connect to S3"
+
+**Solution**: Verify AWS credentials are set correctly:
+
+```bash
+# Test credentials
+aws s3 ls s3://your-bucket/
+
+# Check environment
+echo $AWS_ACCESS_KEY_ID
+echo $AWS_DEFAULT_REGION
+```
+
+### Database Not Found
+
+**Error**: "database does not exist"
+
+**Solution**: 
+1. Verify the S3 path is correct
+2. Check bucket permissions allow `s3:GetObject`
+3. Ensure the file exists:
+
+```bash
+aws s3 ls s3://bucket/path/database.duckdb
+```
+
+### Permission Denied
+
+**Error**: "Access Denied" or "403 Forbidden"
+
+**Solution**: Ensure your IAM user/role has required permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::your-bucket/*",
+        "arn:aws:s3:::your-bucket"
+      ]
+    }
+  ]
+}
+```
+
+### Write Operation Blocked
+
+**Error**: "Cannot execute statement of type INSERT/CREATE in read-only mode"
+
+**Solution**: This is expected - S3 databases are read-only. To modify data:
+
+1. Copy data to local database
+2. Make modifications locally
+3. Upload modified database back to S3 (outside of MCP)
+
+### Region Mismatch
+
+**Error**: Slow queries or connection timeouts
+
+**Solution**: Ensure `AWS_DEFAULT_REGION` matches your bucket's region:
+
+```json
+{
+  "env": {
+    "AWS_DEFAULT_REGION": "us-west-2"  // Match bucket region
+  }
+}
+```

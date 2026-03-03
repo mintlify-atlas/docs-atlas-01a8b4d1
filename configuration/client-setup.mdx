@@ -1,0 +1,578 @@
+---
+title: "Client Setup"
+description: "Configure MCP Server MotherDuck with popular MCP clients including Claude Desktop, VS Code, Cursor, and more"
+icon: "plug"
+---
+
+## Supported Clients
+
+MCP Server MotherDuck works with any MCP-compatible client. Below are setup instructions for popular clients:
+
+| Client | Config Location | One-Click Install |
+|--------|-----------------|-------------------|
+| **Claude Desktop** | Settings → Developer → Edit Config | [Download .mcpb Bundle](https://github.com/motherduckdb/mcp-server-motherduck/releases/latest/download/mcp-server-motherduck.mcpb) |
+| **Claude Code** | Use CLI commands | - |
+| **Codex CLI** | Use CLI commands | - |
+| **Cursor** | Settings → MCP → Add new global MCP server | [Install in Cursor](https://cursor.com/en/install-mcp?name=DuckDB&config=eyJjb21tYW5kIjoidXZ4IG1jcC1zZXJ2ZXItbW90aGVyZHVjayAtLWRiLXBhdGggOm1lbW9yeTogLS1yZWFkLXdyaXRlIC0tYWxsb3ctc3dpdGNoLWRhdGFiYXNlcyIsImVudiI6e319) |
+| **VS Code** | `Ctrl+Shift+P` → "Preferences: Open User Settings (JSON)" | [Install with UV](https://insiders.vscode.dev/redirect/mcp/install?name=mcp-server-motherduck&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-server-motherduck%22%2C%22--db-path%22%2C%22%3Amemory%3A%22%2C%22--read-write%22%2C%22--allow-switch-databases%22%5D%7D) |
+
+<Note>
+  **Prerequisites**: Install `uv` package manager via `pip install uv` or `brew install uv`
+</Note>
+
+## Configuration File Setup
+
+Most MCP clients use a JSON configuration file. The configuration structure is similar across clients, with minor variations in file location.
+
+### Basic Configuration Structure
+
+```json
+{
+  "mcpServers": {
+    "<server-name>": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "<parameters>..."],
+      "env": {
+        "<ENV_VAR>": "<value>"
+      }
+    }
+  }
+}
+```
+
+## Client-Specific Setup
+
+<Tabs>
+  <Tab title="Claude Desktop">
+    ### Claude Desktop Configuration
+
+    **Config file location:**
+    - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+    - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+    - **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+    **Access via UI:**
+    1. Open Claude Desktop
+    2. Go to Settings → Developer
+    3. Click "Edit Config"
+
+    #### Example 1: In-Memory Database (Dev Mode)
+
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB (in-memory, r/w)": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", ":memory:",
+            "--read-write",
+            "--allow-switch-databases"
+          ]
+        }
+      }
+    }
+    ```
+
+    #### Example 2: Local DuckDB File (Read-Only)
+
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB (read-only)": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "/absolute/path/to/your.duckdb"
+          ]
+        }
+      }
+    }
+    ```
+
+    #### Example 3: MotherDuck (Read-Write)
+
+    ```json
+    {
+      "mcpServers": {
+        "MotherDuck (local, r/w)": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "md:",
+            "--read-write"
+          ],
+          "env": {
+            "motherduck_token": "<YOUR_MOTHERDUCK_TOKEN>"
+          }
+        }
+      }
+    }
+    ```
+
+    #### One-Click Installation
+
+    Download and double-click the [.mcpb bundle file](https://github.com/motherduckdb/mcp-server-motherduck/releases/latest/download/mcp-server-motherduck.mcpb) to automatically install in Claude Desktop.
+
+    <Note>
+      After updating the config file, restart Claude Desktop for changes to take effect.
+    </Note>
+  </Tab>
+
+  <Tab title="VS Code">
+    ### VS Code Configuration
+
+    **Config file location:**
+    - **macOS/Linux**: `~/.vscode/settings.json` or workspace `.vscode/settings.json`
+    - **Windows**: `%APPDATA%\Code\User\settings.json` or workspace `.vscode\settings.json`
+
+    **Access via UI:**
+    1. Press `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (macOS)
+    2. Type "Preferences: Open User Settings (JSON)"
+    3. Add MCP configuration under `mcpServers` key
+
+    #### Example Configuration
+
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", ":memory:",
+            "--read-write",
+            "--allow-switch-databases"
+          ]
+        },
+        "MotherDuck": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "md:"
+          ],
+          "env": {
+            "motherduck_token": "<YOUR_TOKEN>"
+          }
+        }
+      }
+    }
+    ```
+
+    #### One-Click Installation
+
+    Click the badge below to automatically install:
+
+    [![Install with UV in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square)](https://insiders.vscode.dev/redirect/mcp/install?name=mcp-server-motherduck&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-server-motherduck%22%2C%22--db-path%22%2C%22%3Amemory%3A%22%2C%22--read-write%22%2C%22--allow-switch-databases%22%5D%7D)
+  </Tab>
+
+  <Tab title="Cursor">
+    ### Cursor Configuration
+
+    **Config file location:**
+    - **macOS**: `~/Library/Application Support/Cursor/User/settings.json`
+    - **Windows**: `%APPDATA%\Cursor\User\settings.json`
+    - **Linux**: `~/.config/Cursor/User/settings.json`
+
+    **Access via UI:**
+    1. Open Cursor
+    2. Go to Settings → MCP
+    3. Click "Add new global MCP server"
+
+    #### Example Configuration
+
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", ":memory:",
+            "--read-write",
+            "--allow-switch-databases"
+          ]
+        }
+      }
+    }
+    ```
+
+    #### One-Click Installation
+
+    Click the image below to install directly in Cursor:
+
+    [<img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install in Cursor" height="20" />](https://cursor.com/en/install-mcp?name=DuckDB&config=eyJjb21tYW5kIjoidXZ4IG1jcC1zZXJ2ZXItbW90aGVyZHVjayAtLWRiLXBhdGggOm1lbW9yeTogLS1yZWFkLXdyaXRlIC0tYWxsb3ctc3dpdGNoLWRhdGFiYXNlcyIsImVudiI6e319)
+  </Tab>
+
+  <Tab title="Claude Code CLI">
+    ### Claude Code CLI Commands
+
+    Claude Code uses CLI commands to add MCP servers instead of editing JSON files.
+
+    #### In-Memory DuckDB (Dev Mode)
+
+    ```bash
+    claude mcp add --scope user duckdb \
+      --transport stdio \
+      -- uvx mcp-server-motherduck \
+      --db-path :memory: \
+      --read-write \
+      --allow-switch-databases
+    ```
+
+    #### Local DuckDB File (Read-Only)
+
+    ```bash
+    claude mcp add --scope user duckdb \
+      --transport stdio \
+      -- uvx mcp-server-motherduck \
+      --db-path /absolute/path/to/db.duckdb
+    ```
+
+    #### MotherDuck (Read-Write)
+
+    ```bash
+    claude mcp add --scope user motherduck \
+      --transport stdio \
+      --env motherduck_token=YOUR_TOKEN \
+      -- uvx mcp-server-motherduck \
+      --db-path md: \
+      --read-write
+    ```
+
+    #### List Configured Servers
+
+    ```bash
+    claude mcp list
+    ```
+
+    #### Remove a Server
+
+    ```bash
+    claude mcp remove duckdb
+    ```
+  </Tab>
+
+  <Tab title="Codex CLI">
+    ### Codex CLI Commands
+
+    Codex uses CLI commands similar to Claude Code for MCP server configuration.
+
+    #### In-Memory DuckDB (Dev Mode)
+
+    ```bash
+    codex mcp add duckdb \
+      -- uvx mcp-server-motherduck \
+      --db-path :memory: \
+      --read-write \
+      --allow-switch-databases
+    ```
+
+    #### Local DuckDB File (Read-Only)
+
+    ```bash
+    codex mcp add duckdb \
+      -- uvx mcp-server-motherduck \
+      --db-path /absolute/path/to/db.duckdb
+    ```
+
+    #### MotherDuck (Read-Write)
+
+    ```bash
+    codex mcp add motherduck \
+      --env motherduck_token=YOUR_TOKEN \
+      -- uvx mcp-server-motherduck \
+      --db-path md: \
+      --read-write
+    ```
+  </Tab>
+</Tabs>
+
+## Advanced Configuration Examples
+
+### Multiple Database Connections
+
+You can configure multiple MCP server instances to connect to different databases simultaneously:
+
+```json
+{
+  "mcpServers": {
+    "Production MotherDuck": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "md:production_db"
+      ],
+      "env": {
+        "motherduck_token": "<PROD_TOKEN>",
+        "MCP_MAX_ROWS": "1024",
+        "MCP_QUERY_TIMEOUT": "30"
+      }
+    },
+    "Staging MotherDuck": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "md:staging_db",
+        "--read-write"
+      ],
+      "env": {
+        "motherduck_token": "<STAGING_TOKEN>"
+      }
+    },
+    "Local Analytics": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/Users/you/data/analytics.duckdb",
+        "--read-write"
+      ]
+    },
+    "S3 Data Lake": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "s3://my-data-lake/warehouse.duckdb"
+      ],
+      "env": {
+        "AWS_ACCESS_KEY_ID": "<YOUR_KEY_ID>",
+        "AWS_SECRET_ACCESS_KEY": "<YOUR_SECRET>",
+        "AWS_DEFAULT_REGION": "us-west-2"
+      }
+    }
+  }
+}
+```
+
+### Development Configuration with Initialization SQL
+
+```json
+{
+  "mcpServers": {
+    "DuckDB Dev": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", ":memory:",
+        "--read-write",
+        "--allow-switch-databases",
+        "--init-sql", "INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial;"
+      ]
+    }
+  }
+}
+```
+
+### HTTP Transport Configuration
+
+```json
+{
+  "mcpServers": {
+    "DuckDB HTTP": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--transport", "http",
+        "--host", "127.0.0.1",
+        "--port", "8000",
+        "--db-path", "md:"
+      ],
+      "env": {
+        "motherduck_token": "<YOUR_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+## Running from Source (Development)
+
+For contributors or those testing local changes:
+
+```json
+{
+  "mcpServers": {
+    "Local DuckDB (Dev)": {
+      "command": "uv",
+      "args": [
+        "--directory", "/path/to/mcp-server-motherduck",
+        "run", "mcp-server-motherduck",
+        "--db-path", "md:"
+      ],
+      "env": {
+        "motherduck_token": "<YOUR_MOTHERDUCK_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+## Common Configuration Patterns
+
+### Read-Only Production Database
+
+```json
+{
+  "mcpServers": {
+    "Production (Read-Only)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "md:production_db",
+        "--motherduck-saas-mode"
+      ],
+      "env": {
+        "motherduck_token": "<READ_SCALING_TOKEN>",
+        "MCP_MAX_ROWS": "1024",
+        "MCP_QUERY_TIMEOUT": "30"
+      }
+    }
+  }
+}
+```
+
+### Local File with Custom Limits
+
+```json
+{
+  "mcpServers": {
+    "Local Analytics": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/Users/you/data/analytics.duckdb",
+        "--read-write"
+      ],
+      "env": {
+        "MCP_MAX_ROWS": "5000",
+        "MCP_MAX_CHARS": "100000",
+        "MCP_QUERY_TIMEOUT": "60",
+        "MCP_EPHEMERAL_CONNECTIONS": "false"
+      }
+    }
+  }
+}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="spawn uvx ENOENT">
+    The client cannot find the `uvx` command.
+    
+    **Solution:** Specify the full path to `uvx`:
+    
+    ```bash
+    # Find uvx path
+    which uvx
+    # Returns: /Users/you/.local/bin/uvx
+    ```
+    
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "/Users/you/.local/bin/uvx",
+          "args": ["mcp-server-motherduck", "--db-path", ":memory:", "--read-write"]
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Database file is locked">
+    Another process has a write lock on the DuckDB file.
+    
+    **Solutions:**
+    1. Ensure `--ephemeral-connections` is enabled (default for read-only)
+    2. Close other connections to the database
+    3. Don't use `--read-write` if you only need read access
+    
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "/path/to/db.duckdb"
+          ],
+          "env": {
+            "MCP_EPHEMERAL_CONNECTIONS": "true"
+          }
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="In-memory database requires --read-write">
+    You're trying to use `:memory:` without the `--read-write` flag.
+    
+    **Solution:** Add `--read-write` flag:
+    
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", ":memory:",
+            "--read-write"
+          ]
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="MotherDuck authentication failed">
+    Invalid or missing MotherDuck token.
+    
+    **Solutions:**
+    1. Verify your token is correct
+    2. For read-only mode, use a read-scaling token
+    3. For read-write mode, use a regular access token
+    
+    ```json
+    {
+      "mcpServers": {
+        "MotherDuck": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "md:",
+            "--read-write"
+          ],
+          "env": {
+            "motherduck_token": "<VALID_TOKEN>"
+          }
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Server not appearing in client">
+    The client hasn't detected the configuration changes.
+    
+    **Solution:** Restart the client application completely (not just reload window).
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- Review [Command Line Parameters](/configuration/command-line-parameters) for detailed parameter documentation
+- Check [Environment Variables](/configuration/environment-variables) for alternative configuration methods
+- See [Quick Start](/quickstart) for usage examples
+- Explore [API Reference](/api-reference/tools/execute-query) for available tools
+
+## Additional Resources
+
+- [MotherDuck MCP Documentation](https://motherduck.com/docs/sql-reference/mcp/)
+- [MCP Server MotherDuck GitHub Repository](https://github.com/motherduckdb/mcp-server-motherduck)
+- [DuckDB Documentation](https://duckdb.org/docs/)
+- [Model Context Protocol Specification](https://modelcontextprotocol.io/)

@@ -1,0 +1,361 @@
+---
+title: "Command Line Parameters"
+description: "Complete reference for all command-line parameters available in MCP Server MotherDuck"
+icon: "terminal"
+---
+
+## Overview
+
+MCP Server MotherDuck supports a comprehensive set of command-line parameters that control database connections, security, performance, and transport configuration. All parameters can also be set via environment variables (see [Environment Variables](/configuration/environment-variables)).
+
+## Connection Parameters
+
+These parameters control how the server connects to DuckDB or MotherDuck databases.
+
+<ParamField path="--db-path" type="string" default=":memory:">
+  Path to local DuckDB database file or MotherDuck database.
+  
+  - Use `:memory:` for an in-memory database (requires `--read-write` flag)
+  - Use `md:` for MotherDuck default database
+  - Use `md:database_name` for a specific MotherDuck database
+  - Use absolute file path for local DuckDB files (e.g., `/path/to/database.duckdb`)
+  - Use `s3://bucket/path.duckdb` for S3-hosted databases
+  
+  **Environment variable:** `MCP_DB_PATH`
+  
+  **Examples:**
+  ```bash
+  # In-memory database
+  mcp-server-motherduck --db-path :memory: --read-write
+  
+  # Local DuckDB file
+  mcp-server-motherduck --db-path /Users/you/data/analytics.duckdb
+  
+  # MotherDuck
+  mcp-server-motherduck --db-path md: --motherduck-token YOUR_TOKEN
+  
+  # S3-hosted database
+  mcp-server-motherduck --db-path s3://my-bucket/data.duckdb
+  ```
+</ParamField>
+
+<ParamField path="--motherduck-token" type="string" default="None">
+  Access token to use for MotherDuck database connections.
+  
+  If not specified, the server will look for the token in environment variables `motherduck_token` or `MOTHERDUCK_TOKEN`.
+  
+  **Environment variables:** `motherduck_token`, `MOTHERDUCK_TOKEN`
+  
+  <Note>
+    For read-only MotherDuck connections, you need a [read-scaling token](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/read-scaling/#creating-a-read-scaling-token). Regular tokens require `--read-write` mode.
+  </Note>
+  
+  **Example:**
+  ```bash
+  mcp-server-motherduck --db-path md: --motherduck-token abc123xyz456
+  ```
+</ParamField>
+
+<ParamField path="--home-dir" type="string" default="None">
+  Override the home directory for DuckDB. Defaults to system HOME environment variable.
+  
+  DuckDB uses the home directory to store extensions and configuration files. This parameter allows you to override the default location.
+  
+  **Example:**
+  ```bash
+  mcp-server-motherduck --home-dir /custom/duckdb/home
+  ```
+</ParamField>
+
+<ParamField path="--motherduck-connection-parameters" type="string" default="session_hint=mcp&dbinstance_inactivity_ttl=0s">
+  Additional MotherDuck connection string parameters in `key=value` format separated by `&`.
+  
+  These parameters are appended to the MotherDuck connection string and allow fine-tuning of connection behavior.
+  
+  **Environment variable:** `MCP_MOTHERDUCK_CONNECTION_PARAMETERS`
+  
+  **Example:**
+  ```bash
+  # Custom session hint and TTL
+  mcp-server-motherduck --motherduck-connection-parameters 'session_hint=my_app&dbinstance_inactivity_ttl=1h'
+  ```
+</ParamField>
+
+## Security Parameters
+
+These parameters control access permissions and security settings.
+
+<ParamField path="--read-write" type="boolean" default="false">
+  Enable write access to the database. By default, the server runs in read-only mode for local DuckDB files and MotherDuck databases.
+  
+  **Environment variable:** `MCP_READ_WRITE`
+  
+  <Warning>
+    In-memory databases (`:memory:`) are always writable due to a DuckDB limitation. You must specify `--read-write` explicitly when using `:memory:`.
+  </Warning>
+  
+  **Examples:**
+  ```bash
+  # Read-write in-memory database
+  mcp-server-motherduck --db-path :memory: --read-write
+  
+  # Read-write MotherDuck connection
+  mcp-server-motherduck --db-path md: --read-write --motherduck-token YOUR_TOKEN
+  
+  # Read-only local file (default)
+  mcp-server-motherduck --db-path /path/to/db.duckdb
+  ```
+</ParamField>
+
+<ParamField path="--motherduck-saas-mode" type="boolean" default="false">
+  Flag for connecting to MotherDuck in SaaS mode.
+  
+  SaaS mode restricts local filesystem access for enhanced security. Recommended for production deployments with third-party access.
+  
+  **Environment variable:** `MCP_SAAS_MODE`
+  
+  <Note>
+    See [Securing for Production](https://github.com/motherduckdb/mcp-server-motherduck#securing-for-production) for deployment guidance. Consider using [MotherDuck Remote MCP](https://motherduck.com/docs/sql-reference/mcp/) for fully-managed production deployments.
+  </Note>
+  
+  **Example:**
+  ```bash
+  mcp-server-motherduck --db-path md: --motherduck-saas-mode --motherduck-token YOUR_TOKEN
+  ```
+</ParamField>
+
+<ParamField path="--allow-switch-databases" type="boolean" default="false">
+  Enable the `switch_database_connection` tool to change databases at runtime.
+  
+  When enabled, AI assistants can switch between different database connections (local files, S3, or MotherDuck) during a session.
+  
+  **Environment variable:** `MCP_ALLOW_SWITCH_DATABASES`
+  
+  <Warning>
+    Only enable this in trusted environments. It allows AI assistants to connect to any accessible database.
+  </Warning>
+  
+  **Example:**
+  ```bash
+  # Dev mode with full flexibility
+  mcp-server-motherduck --db-path :memory: --read-write --allow-switch-databases
+  ```
+</ParamField>
+
+<ParamField path="--init-sql" type="string" default="None">
+  SQL file path or SQL string to execute on startup for database initialization.
+  
+  Useful for applying security settings, creating tables, loading extensions, or setting up the database environment.
+  
+  **Environment variable:** `MCP_INIT_SQL`
+  
+  **Examples:**
+  ```bash
+  # Execute SQL from file
+  mcp-server-motherduck --init-sql /path/to/init.sql
+  
+  # Execute SQL string
+  mcp-server-motherduck --init-sql "INSTALL httpfs; LOAD httpfs;"
+  ```
+  
+  <Note>
+    For securing DuckDB deployments, see the [Securing DuckDB guide](https://duckdb.org/docs/stable/operations_manual/securing_duckdb/overview).
+  </Note>
+</ParamField>
+
+## Performance Parameters
+
+These parameters control query execution and result limits.
+
+<ParamField path="--max-rows" type="integer" default="1024">
+  Maximum number of rows to return from queries.
+  
+  Use SQL `LIMIT` clauses in your queries for specific row counts. This parameter provides a global limit to prevent overwhelming responses.
+  
+  **Environment variable:** `MCP_MAX_ROWS`
+  
+  **Example:**
+  ```bash
+  mcp-server-motherduck --max-rows 5000
+  ```
+</ParamField>
+
+<ParamField path="--max-chars" type="integer" default="50000">
+  Maximum number of characters in query results.
+  
+  Prevents issues with wide rows or large text columns by truncating results if they exceed this limit.
+  
+  **Environment variable:** `MCP_MAX_CHARS`
+  
+  **Example:**
+  ```bash
+  mcp-server-motherduck --max-chars 100000
+  ```
+</ParamField>
+
+<ParamField path="--query-timeout" type="integer" default="-1">
+  Query execution timeout in seconds. Set to `-1` to disable timeout.
+  
+  **Environment variable:** `MCP_QUERY_TIMEOUT`
+  
+  **Examples:**
+  ```bash
+  # 30 second timeout
+  mcp-server-motherduck --query-timeout 30
+  
+  # Disable timeout
+  mcp-server-motherduck --query-timeout -1
+  ```
+</ParamField>
+
+<ParamField path="--ephemeral-connections" type="boolean" default="true">
+  Use temporary connections for read-only local DuckDB files.
+  
+  When enabled, the server creates a new connection for each query, keeping the file unlocked so other processes can write to it. Use `--no-ephemeral-connections` to maintain a persistent connection.
+  
+  **Environment variable:** `MCP_EPHEMERAL_CONNECTIONS`
+  
+  **Examples:**
+  ```bash
+  # Ephemeral connections (default)
+  mcp-server-motherduck --db-path /path/to/db.duckdb
+  
+  # Persistent connection
+  mcp-server-motherduck --db-path /path/to/db.duckdb --no-ephemeral-connections
+  ```
+  
+  <Note>
+    Ephemeral connections are only used for read-only local DuckDB files. They have no effect on in-memory databases or MotherDuck connections.
+  </Note>
+</ParamField>
+
+## Transport Parameters
+
+These parameters control how the MCP server communicates with clients.
+
+<ParamField path="--transport" type="choice" default="stdio">
+  Transport type for the MCP server.
+  
+  **Choices:** `stdio`, `http`, `sse`, `stream`
+  
+  - `stdio`: Standard input/output (default, for local AI assistants)
+  - `http`: Streamable HTTP transport (for remote connections)
+  - `sse`, `stream`: Deprecated aliases for `http`
+  
+  **Environment variable:** `MCP_TRANSPORT`
+  
+  <Warning>
+    `sse` and `stream` are deprecated. Use `http` instead.
+  </Warning>
+  
+  **Examples:**
+  ```bash
+  # stdio transport (default)
+  mcp-server-motherduck --transport stdio
+  
+  # HTTP transport
+  mcp-server-motherduck --transport http --host 0.0.0.0 --port 8080
+  ```
+</ParamField>
+
+<ParamField path="--stateless-http" type="boolean" default="false">
+  Use stateless Streamable HTTP when `--transport http`.
+  
+  Required for platforms that inject `Mcp-Session-Id` headers (e.g., AWS Bedrock AgentCore Runtime).
+  
+  **Environment variable:** `MCP_STATELESS_HTTP`
+  
+  <Note>
+    This is for protocol compatibility only. The server still maintains global state via the shared DatabaseClient.
+  </Note>
+  
+  **Example:**
+  ```bash
+  mcp-server-motherduck --transport http --stateless-http
+  ```
+</ParamField>
+
+<ParamField path="--host" type="string" default="127.0.0.1">
+  Host to bind the MCP server when using HTTP transport.
+  
+  **Environment variable:** `MCP_HOST`
+  
+  **Examples:**
+  ```bash
+  # Localhost only (default)
+  mcp-server-motherduck --transport http --host 127.0.0.1
+  
+  # All interfaces
+  mcp-server-motherduck --transport http --host 0.0.0.0
+  ```
+</ParamField>
+
+<ParamField path="--port" type="integer" default="8000">
+  Port to listen on for HTTP transport.
+  
+  **Environment variable:** `MCP_PORT`
+  
+  **Example:**
+  ```bash
+  mcp-server-motherduck --transport http --port 8080
+  ```
+</ParamField>
+
+## Complete Configuration Examples
+
+### Development: In-Memory with Full Access
+
+```bash
+mcp-server-motherduck \
+  --db-path :memory: \
+  --read-write \
+  --allow-switch-databases \
+  --max-rows 5000 \
+  --query-timeout 60
+```
+
+### Production: MotherDuck Read-Only with SaaS Mode
+
+```bash
+mcp-server-motherduck \
+  --db-path md:production_db \
+  --motherduck-token YOUR_READ_SCALING_TOKEN \
+  --motherduck-saas-mode \
+  --max-rows 1024 \
+  --query-timeout 30
+```
+
+### Local File: Read-Write with Initialization
+
+```bash
+mcp-server-motherduck \
+  --db-path /data/analytics.duckdb \
+  --read-write \
+  --init-sql "INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial;" \
+  --ephemeral-connections false \
+  --max-rows 2048
+```
+
+### HTTP Transport: Remote Access
+
+```bash
+mcp-server-motherduck \
+  --transport http \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --db-path md: \
+  --motherduck-token YOUR_TOKEN \
+  --read-write
+```
+
+## Deprecated Parameters
+
+The following parameters are deprecated and should not be used:
+
+- `--saas-mode`: Use `--motherduck-saas-mode` instead
+- `--read-only`: Read-only is now the default. Use `--read-write` for write access
+- `--json-response`: No longer needed, JSON responses are automatic
+
+<Warning>
+  Using deprecated parameters will generate warnings but the server will still run. Update your configuration to use the new parameters.
+</Warning>

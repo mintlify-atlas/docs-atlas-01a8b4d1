@@ -1,0 +1,331 @@
+---
+title: switch_database_connection
+description: Switch to a different database connection at runtime
+---
+
+<Warning>
+  This tool requires the server to be started with the `--allow-switch-databases` flag. It is disabled by default for security reasons.
+</Warning>
+
+## Overview
+
+Switch to a different database connection at runtime. The new connection respects the server's read-only or read-write mode setting. For local file paths, absolute paths are required.
+
+This is an "open world" tool that can connect to any accessible database path, making it powerful but potentially risky. Use with caution.
+
+## Parameters
+
+<ParamField path="path" type="string" required>
+  Database path to switch to. Supported formats:
+  
+  - **Local absolute paths**: `/home/user/data/mydb.duckdb` (must be absolute, not relative)
+  - **In-memory**: `:memory:` (creates temporary database)
+  - **MotherDuck**: `md:` or `md:database_name` (requires MotherDuck token)
+  - **S3**: `s3://bucket/path/to/database.duckdb` (requires AWS credentials)
+</ParamField>
+
+<ParamField path="create_if_not_exists" type="boolean" default={false}>
+  If `true`, create the database file if it doesn't exist. Only works for local file paths and only when the server is in read-write mode. Has no effect for `:memory:`, `md:`, or `s3://` paths.
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  Indicates whether the switch was successful.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message when successful.
+</ResponseField>
+
+<ResponseField name="previousDatabase" type="string">
+  Path of the database connection before the switch.
+</ResponseField>
+
+<ResponseField name="currentDatabase" type="string">
+  Path of the new current database connection.
+</ResponseField>
+
+<ResponseField name="readOnly" type="boolean">
+  Whether the new connection is in read-only mode. This is determined by the server's global `--read-only` flag, not the tool call.
+</ResponseField>
+
+<ResponseField name="warning" type="string">
+  Warning message if applicable (e.g., in-memory databases cannot be read-only).
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message when success is false.
+</ResponseField>
+
+<ResponseField name="errorType" type="string">
+  Type of error that occurred (e.g., "ValueError", "FileNotFoundError", "PermissionError").
+</ResponseField>
+
+## Examples
+
+### Switch to Local Database File
+
+**Request:**
+
+```json
+{
+  "path": "/home/user/data/analytics.duckdb"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Switched to database: /home/user/data/analytics.duckdb",
+  "previousDatabase": ":memory:",
+  "currentDatabase": "/home/user/data/analytics.duckdb",
+  "readOnly": false
+}
+```
+
+### Switch to In-Memory Database
+
+**Request:**
+
+```json
+{
+  "path": ":memory:"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Switched to database: :memory:",
+  "previousDatabase": "/home/user/data/analytics.duckdb",
+  "currentDatabase": ":memory:",
+  "readOnly": false
+}
+```
+
+### Switch to MotherDuck Database
+
+**Request:**
+
+```json
+{
+  "path": "md:my_database"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Switched to database: md:my_database",
+  "previousDatabase": ":memory:",
+  "currentDatabase": "md:my_database?motherduck_token=***",
+  "readOnly": false
+}
+```
+
+### Switch to S3 Database
+
+**Request:**
+
+```json
+{
+  "path": "s3://my-bucket/databases/warehouse.duckdb"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Switched to database: s3://my-bucket/databases/warehouse.duckdb",
+  "previousDatabase": "md:my_database",
+  "currentDatabase": "s3://my-bucket/databases/warehouse.duckdb",
+  "readOnly": true
+}
+```
+
+### Create New Database File
+
+**Request:**
+
+```json
+{
+  "path": "/home/user/data/newdb.duckdb",
+  "create_if_not_exists": true
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Switched to database: /home/user/data/newdb.duckdb",
+  "previousDatabase": ":memory:",
+  "currentDatabase": "/home/user/data/newdb.duckdb",
+  "readOnly": false
+}
+```
+
+### In-Memory with Read-Only Server
+
+**Request:**
+
+```json
+{
+  "path": ":memory:"
+}
+```
+
+**Response (server started with --read-only):**
+
+```json
+{
+  "success": true,
+  "message": "Switched to database: :memory:",
+  "previousDatabase": "/home/user/data/mydb.duckdb",
+  "currentDatabase": ":memory:",
+  "readOnly": false,
+  "warning": "In-memory databases cannot be read-only (DuckDB limitation)"
+}
+```
+
+### Error - Relative Path Not Allowed
+
+**Request:**
+
+```json
+{
+  "path": "./data/mydb.duckdb"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": false,
+  "error": "Relative paths are not allowed. Please use an absolute path. Got: ./data/mydb.duckdb",
+  "errorType": "ValueError"
+}
+```
+
+### Error - File Not Found
+
+**Request:**
+
+```json
+{
+  "path": "/home/user/nonexistent.duckdb"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": false,
+  "error": "Database file does not exist: /home/user/nonexistent.duckdb. Set create_if_not_exists=True to create a new database.",
+  "errorType": "FileNotFoundError"
+}
+```
+
+### Error - Cannot Create in Read-Only Mode
+
+**Request:**
+
+```json
+{
+  "path": "/home/user/newdb.duckdb",
+  "create_if_not_exists": true
+}
+```
+
+**Response (server started with --read-only):**
+
+```json
+{
+  "success": false,
+  "error": "Cannot create new database file in read-only mode. The server must be started with --read-write to create databases.",
+  "errorType": "PermissionError"
+}
+```
+
+## Supported Path Formats
+
+### Local File Paths
+
+<Info>
+  **Absolute paths only**: Local file paths must be absolute (e.g., `/home/user/data/db.duckdb`). Relative paths like `./data.duckdb` or `data.duckdb` are not allowed for security reasons.
+</Info>
+
+### In-Memory Databases
+
+<Info>
+  **Temporary data**: `:memory:` creates a temporary database that exists only for the duration of the connection. Data is lost when the server restarts or switches to another database.
+</Info>
+
+<Info>
+  **Cannot be read-only**: Due to DuckDB limitations, in-memory databases cannot be opened in read-only mode, even if the server is started with `--read-only`.
+</Info>
+
+### MotherDuck
+
+<Info>
+  **Token required**: Switching to MotherDuck (`md:` or `md:database_name`) requires a MotherDuck authentication token to be configured via environment variable or server startup.
+</Info>
+
+### S3 Databases
+
+<Info>
+  **AWS credentials required**: Switching to S3 databases (`s3://`) requires valid AWS credentials in environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally `AWS_SESSION_TOKEN`.
+</Info>
+
+## Security Implications
+
+<Warning>
+  **Open World Access**: This tool has `openWorldHint: true`, meaning it can connect to any database path the server process can access. This includes:
+  
+  - Any local file system path (within OS permissions)
+  - Any MotherDuck database (with valid token)
+  - Any S3 bucket (with valid AWS credentials)
+  
+  Only enable `--allow-switch-databases` if you trust the AI assistant or user to make safe connection choices.
+</Warning>
+
+<Warning>
+  **File System Access**: When switching to local database paths, the server process will have read/write access (depending on `--read-only` flag) to those files. Ensure proper file system permissions are in place.
+</Warning>
+
+<Warning>
+  **Data Exposure**: Switching databases can expose different data sets. Ensure users/assistants have appropriate permissions for all databases they might switch to.
+</Warning>
+
+## Read-Only vs Read-Write Mode
+
+The new database connection respects the server's global mode:
+
+- **Read-Only Mode** (`--read-only`): New connections are read-only (except `:memory:`)
+- **Read-Write Mode** (default): New connections have write access
+
+You cannot override the server's mode with this tool. To change modes, restart the server with or without the `--read-only` flag.
+
+## Tool Annotations
+
+<Note>
+  This tool has `openWorldHint: true`, indicating it can access external resources beyond the initial configuration.
+</Note>
+
+## Related Tools
+
+- Use [list_databases](/api-reference/tools/list-databases) after switching to see available databases
+- Use [list_tables](/api-reference/tools/list-tables) to discover tables in the new database
+- Use [execute_query](/api-reference/tools/execute-query) to query the new database

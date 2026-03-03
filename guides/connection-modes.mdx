@@ -1,0 +1,283 @@
+---
+title: Connection Modes
+description: Learn about different database connection modes supported by MCP Server MotherDuck
+---
+
+MCP Server MotherDuck supports multiple database connection modes, allowing you to connect to in-memory databases, local DuckDB files, MotherDuck cloud databases, and S3-hosted databases.
+
+## Available Connection Modes
+
+<CardGroup cols={2}>
+  <Card title="In-Memory" icon="memory">
+    Temporary database stored in RAM, perfect for development and testing
+  </Card>
+  <Card title="Local DuckDB Files" icon="file">
+    Connect to DuckDB files on your local filesystem
+  </Card>
+  <Card title="MotherDuck" icon="cloud">
+    Cloud-hosted DuckDB databases with collaborative features
+  </Card>
+  <Card title="S3 Databases" icon="database">
+    Query DuckDB databases stored in Amazon S3
+  </Card>
+</CardGroup>
+
+## In-Memory Databases
+
+In-memory databases are stored entirely in RAM and are ideal for development, testing, or temporary data processing. Data is lost when the connection closes.
+
+<Tabs>
+  <Tab title="JSON Config">
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB (in-memory, r/w)": {
+          "command": "uvx",
+          "args": ["mcp-server-motherduck", "--db-path", ":memory:", "--read-write", "--allow-switch-databases"]
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    claude mcp add --scope user duckdb --transport stdio -- uvx mcp-server-motherduck --db-path :memory: --read-write --allow-switch-databases
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  In-memory databases always require the `--read-write` flag since DuckDB doesn't support read-only mode for `:memory:` databases.
+</Note>
+
+**When to use:**
+- Development and testing
+- Temporary data processing
+- Quick data exploration without persistence
+- Maximum flexibility with no guardrails
+
+## Local DuckDB Files
+
+Connect to DuckDB database files stored on your local filesystem. The server supports both ephemeral and persistent connections.
+
+### Read-Only Mode (Default)
+
+Read-only connections are safer and allow concurrent access from multiple processes.
+
+<Tabs>
+  <Tab title="JSON Config">
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB (read-only)": {
+          "command": "uvx",
+          "args": ["mcp-server-motherduck", "--db-path", "/absolute/path/to/your.duckdb"]
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    claude mcp add --scope user duckdb --transport stdio -- uvx mcp-server-motherduck --db-path /absolute/path/to/db.duckdb
+    ```
+  </Tab>
+</Tabs>
+
+### Read-Write Mode
+
+Enable write access by adding the `--read-write` flag:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (read-write)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "/absolute/path/to/your.duckdb", "--read-write"]
+    }
+  }
+}
+```
+
+### Ephemeral vs Persistent Connections
+
+By default, read-only local file connections use **ephemeral connections** (`--ephemeral-connections` is `true` by default). This means:
+
+- A new connection is created for each query
+- The file is immediately unlocked after each query
+- Other processes can write to the database concurrently
+- Prevents "file locked" errors
+
+To use a persistent connection (hold the file lock):
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (persistent)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "/path/to/db.duckdb", "--no-ephemeral-connections"]
+    }
+  }
+}
+```
+
+<Tip>
+  Keep `--ephemeral-connections` enabled (default) if you need to use the MCP server alongside a write connection to the same DuckDB file.
+</Tip>
+
+**When to use local files:**
+- Querying existing DuckDB databases
+- Concurrent read access while another process writes
+- Local data analysis and exploration
+- Building and maintaining local data pipelines
+
+## MotherDuck
+
+Connect to cloud-hosted DuckDB databases on MotherDuck. Requires a MotherDuck token.
+
+### Read-Write Mode
+
+<Tabs>
+  <Tab title="JSON Config">
+    ```json
+    {
+      "mcpServers": {
+        "MotherDuck (local, r/w)": {
+          "command": "uvx",
+          "args": ["mcp-server-motherduck", "--db-path", "md:", "--read-write"],
+          "env": {
+            "motherduck_token": "<YOUR_MOTHERDUCK_TOKEN>"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    claude mcp add --scope user motherduck --transport stdio --env motherduck_token=YOUR_TOKEN -- uvx mcp-server-motherduck --db-path md: --read-write
+    ```
+  </Tab>
+</Tabs>
+
+### Read-Only Mode
+
+Read-only MotherDuck connections require a [read-scaling token](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/read-scaling/#creating-a-read-scaling-token) instead of a regular token:
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck (read-only)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "md:"],
+      "env": {
+        "motherduck_token": "<YOUR_READ_SCALING_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+<Warning>
+  Regular MotherDuck tokens require `--read-write` mode. Read-only mode only works with [read-scaling tokens](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#read-scaling-tokens).
+</Warning>
+
+**When to use MotherDuck:**
+- Collaborative data analysis
+- Cloud-based data warehousing
+- Sharing databases across teams
+- Combining local and cloud data processing
+
+### MotherDuck Remote MCP
+
+For a fully-managed remote MCP server for MotherDuck with zero-setup, see the [MotherDuck Remote MCP](https://motherduck.com/docs/sql-reference/mcp/).
+
+| | **Remote MCP** | **Local MCP** (this server) |
+|---|---|---|
+| **Hosting** | Hosted by MotherDuck | Runs locally/self-hosted |
+| **Setup** | Zero-setup | Requires local installation |
+| **Access** | Read-write supported | Read-write supported |
+| **Local filesystem** | - | Query across local and remote databases, ingest/export local files |
+
+## S3 Databases
+
+Connect to DuckDB databases stored in Amazon S3 buckets.
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (S3)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "s3://bucket-name/path/to/database.duckdb"],
+      "env": {
+        "AWS_ACCESS_KEY_ID": "<YOUR_ACCESS_KEY>",
+        "AWS_SECRET_ACCESS_KEY": "<YOUR_SECRET_KEY>",
+        "AWS_DEFAULT_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
+### S3 Authentication
+
+The server supports multiple AWS authentication methods:
+
+<AccordionGroup>
+  <Accordion title="Access Key and Secret Key">
+    Provide static credentials via environment variables:
+    ```json
+    "env": {
+      "AWS_ACCESS_KEY_ID": "your-access-key",
+      "AWS_SECRET_ACCESS_KEY": "your-secret-key",
+      "AWS_DEFAULT_REGION": "us-east-1"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="IAM Roles and Session Tokens">
+    For temporary credentials (IAM roles, SSO, EC2 instance profiles):
+    ```json
+    "env": {
+      "AWS_SESSION_TOKEN": "your-session-token",
+      "AWS_DEFAULT_REGION": "us-east-1"
+    }
+    ```
+    The server will use the credential chain provider to automatically fetch credentials.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  S3 databases are always attached as read-only, even when `--read-write` is specified. This is because S3 storage is typically used for read-only access patterns.
+</Note>
+
+**When to use S3:**
+- Querying large datasets stored in S3
+- Accessing archived DuckDB databases
+- Serverless data processing
+- Cost-effective storage for infrequently accessed data
+
+## Switching Databases at Runtime
+
+With the `--allow-switch-databases` flag, you can switch between different databases during a session using the `switch_database_connection` tool:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (flexible)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", ":memory:", "--read-write", "--allow-switch-databases"]
+    }
+  }
+}
+```
+
+This allows your AI assistant to:
+- Switch from in-memory to local files
+- Connect to different MotherDuck databases
+- Switch to S3 databases
+- Create new databases on-the-fly
+
+<Warning>
+  Only enable `--allow-switch-databases` in trusted environments. This feature gives the AI assistant access to any database path it can construct.
+</Warning>

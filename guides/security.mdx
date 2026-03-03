@@ -1,0 +1,399 @@
+---
+title: Security Best Practices
+description: Secure your MCP Server MotherDuck deployment for production environments
+---
+
+When deploying MCP Server MotherDuck in production or giving third parties access to a self-hosted MCP server, proper security configuration is essential.
+
+<Warning>
+  **Read-only mode alone is not sufficient** for securing production deployments. It still allows access to the local filesystem, changing DuckDB settings, and other potentially sensitive operations.
+</Warning>
+
+## Recommended: MotherDuck Remote MCP
+
+For production deployments with third-party access, we recommend **[MotherDuck Remote MCP](https://motherduck.com/docs/sql-reference/mcp/)** — a fully-managed, zero-setup solution hosted by MotherDuck.
+
+**Benefits:**
+- Zero-setup required
+- Read-write capability
+- Hosted and maintained by MotherDuck
+- Built-in security controls
+- No local filesystem exposure
+
+| | **Remote MCP** | **Local MCP** (this server) |
+|---|---|---|
+| **Hosting** | Hosted by MotherDuck | Runs locally/self-hosted |
+| **Setup** | Zero-setup | Requires local installation |
+| **Access** | Read-write supported | Read-write supported |
+| **Local filesystem** | - | Query across local and remote databases |
+
+Learn more: [MotherDuck Remote MCP Documentation](https://motherduck.com/docs/sql-reference/mcp/)
+
+## Self-Hosting MotherDuck MCP
+
+If you need to self-host the MCP server for MotherDuck, follow these security best practices:
+
+### 1. Use Service Accounts
+
+Create dedicated [service accounts](https://motherduck.com/docs/key-tasks/service-accounts-guide/) for the MCP server instead of using personal tokens:
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck (service account)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "md:"],
+      "env": {
+        "motherduck_token": "<SERVICE_ACCOUNT_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+**Benefits of service accounts:**
+- Separate credentials from personal accounts
+- Granular access control
+- Easier credential rotation
+- Audit trail for service activity
+
+### 2. Use Read-Scaling Tokens
+
+For read-only access, use [read-scaling tokens](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/read-scaling/#creating-a-read-scaling-token) instead of regular tokens:
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck (read-scaling)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "md:"],
+      "env": {
+        "motherduck_token": "<READ_SCALING_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+<Note>
+  Read-scaling tokens provide read-only access and better performance for analytics workloads. They cannot be used with `--read-write` mode.
+</Note>
+
+### 3. Enable SaaS Mode
+
+Enable [SaaS mode](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#authentication-using-saas-mode) to restrict local file access:
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck (SaaS mode)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "md:",
+        "--motherduck-saas-mode"
+      ],
+      "env": {
+        "motherduck_token": "<SERVICE_ACCOUNT_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+**SaaS mode restrictions:**
+- Blocks access to the local filesystem
+- Prevents reading or writing local files
+- Limits operations to MotherDuck cloud databases only
+- Reduces attack surface for third-party access
+
+<Tip>
+  Combine SaaS mode with read-scaling tokens for maximum security in read-only scenarios.
+</Tip>
+
+### Complete Secure Configuration
+
+Here's a fully secured configuration combining all best practices:
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck (secure)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "md:",
+        "--motherduck-saas-mode"
+      ],
+      "env": {
+        "motherduck_token": "<SERVICE_ACCOUNT_READ_SCALING_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+## Self-Hosting DuckDB MCP
+
+When self-hosting the MCP server for local DuckDB databases, use the `--init-sql` parameter to apply security settings.
+
+### Using --init-sql for Security
+
+The `--init-sql` parameter executes SQL commands on startup to configure security settings:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (secure)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/path/to/db.duckdb",
+        "--init-sql", "/path/to/security-init.sql"
+      ]
+    }
+  }
+}
+```
+
+### Security Initialization SQL
+
+Create a `security-init.sql` file with DuckDB security settings:
+
+```sql
+-- Disable external access
+SET enable_external_access = false;
+
+-- Restrict file operations
+SET enable_object_cache = false;
+
+-- Set memory limits
+SET memory_limit = '4GB';
+SET max_memory = '4GB';
+
+-- Disable risky extensions
+SET autoinstall_known_extensions = false;
+SET autoload_known_extensions = false;
+```
+
+<Note>
+  You can also pass SQL directly as a string:
+  ```bash
+  --init-sql "SET enable_external_access = false; SET memory_limit = '4GB';"
+  ```
+</Note>
+
+### DuckDB Security Guide
+
+Refer to the official [DuckDB Securing Guide](https://duckdb.org/docs/stable/operations_manual/securing_duckdb/overview) for comprehensive security options:
+
+- Restricting file system access
+- Controlling extension loading
+- Setting resource limits
+- Configuring network access
+- Managing temporary directories
+
+## General Security Practices
+
+### 1. Use Read-Only Mode by Default
+
+Always start with read-only mode unless write access is explicitly required:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "/path/to/db.duckdb"]
+    }
+  }
+}
+```
+
+<Warning>
+  Read-only mode prevents data modifications but does not restrict filesystem access or DuckDB settings changes. Use additional security measures for production deployments.
+</Warning>
+
+### 2. Limit Database Switching
+
+By default, the `switch_database_connection` tool is disabled. Only enable it in trusted environments:
+
+```json
+// Insecure - allows switching to any database
+{
+  "args": [
+    "mcp-server-motherduck",
+    "--db-path", ":memory:",
+    "--allow-switch-databases"  // ⚠️ Use carefully
+  ]
+}
+```
+
+<Warning>
+  `--allow-switch-databases` gives the AI assistant access to any database path it can construct. Only use in development or trusted environments.
+</Warning>
+
+### 3. Set Resource Limits
+
+Limit query resource consumption to prevent abuse:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (limited)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/path/to/db.duckdb",
+        "--max-rows", "1000",
+        "--max-chars", "50000",
+        "--query-timeout", "30"
+      ]
+    }
+  }
+}
+```
+
+**Resource limit parameters:**
+- `--max-rows`: Maximum rows returned (default: 1024)
+- `--max-chars`: Maximum characters in results (default: 50000)
+- `--query-timeout`: Query timeout in seconds (default: -1, disabled)
+
+### 4. Secure Token Storage
+
+Never hardcode tokens in configuration files:
+
+```json
+// ❌ Bad - token in config
+{
+  "env": {
+    "motherduck_token": "my_secret_token_123"
+  }
+}
+
+// ✅ Good - use environment variables
+{
+  "env": {
+    "motherduck_token": "${MOTHERDUCK_TOKEN}"
+  }
+}
+```
+
+Store tokens in:
+- System environment variables
+- Secure credential managers (e.g., AWS Secrets Manager)
+- Encrypted configuration files
+- Password managers
+
+### 5. Fork and Customize
+
+For advanced security requirements, fork the repository and customize:
+
+```bash
+git clone https://github.com/motherduckdb/mcp-server-motherduck.git
+cd mcp-server-motherduck
+# Make your security modifications
+# Deploy your custom build
+```
+
+**Common customizations:**
+- Add authentication layers
+- Implement custom access controls
+- Add audit logging
+- Restrict allowed SQL operations
+- Add rate limiting
+
+## Security Checklist
+
+Use this checklist for production deployments:
+
+<AccordionGroup>
+  <Accordion title="MotherDuck Deployment">
+    - [ ] Use service accounts instead of personal tokens
+    - [ ] Use read-scaling tokens for read-only access
+    - [ ] Enable SaaS mode (`--motherduck-saas-mode`)
+    - [ ] Store tokens in secure credential storage
+    - [ ] Set resource limits (`--max-rows`, `--query-timeout`)
+    - [ ] Disable `--allow-switch-databases` unless required
+    - [ ] Consider MotherDuck Remote MCP for zero-setup security
+  </Accordion>
+  
+  <Accordion title="Local DuckDB Deployment">
+    - [ ] Use read-only mode by default
+    - [ ] Configure security settings with `--init-sql`
+    - [ ] Set memory and resource limits
+    - [ ] Disable external access and risky extensions
+    - [ ] Review DuckDB security guide
+    - [ ] Set query timeout (`--query-timeout`)
+    - [ ] Disable `--allow-switch-databases`
+    - [ ] Restrict file system access paths
+  </Accordion>
+  
+  <Accordion title="Network and Infrastructure">
+    - [ ] Run MCP server in isolated network segment
+    - [ ] Use firewall rules to restrict access
+    - [ ] Enable logging and monitoring
+    - [ ] Implement rate limiting if exposed to network
+    - [ ] Use HTTPS for HTTP transport mode
+    - [ ] Regular security updates and patches
+  </Accordion>
+</AccordionGroup>
+
+## Common Security Pitfalls
+
+### ❌ Pitfall 1: Assuming Read-Only Mode is Sufficient
+
+```json
+// This is NOT secure for third-party access
+{
+  "args": ["mcp-server-motherduck", "--db-path", "/sensitive/data.duckdb"]
+}
+```
+
+**Why:** Read-only mode prevents data modifications but still allows:
+- Reading any file accessible to the process
+- Changing DuckDB settings
+- Loading extensions
+- Accessing environment variables
+
+### ❌ Pitfall 2: Hardcoded Credentials
+
+```json
+// Never do this
+{
+  "env": {
+    "motherduck_token": "abc123_my_token"
+  }
+}
+```
+
+**Why:** Credentials in config files can be:
+- Accidentally committed to version control
+- Exposed in logs or error messages
+- Read by unauthorized users with file access
+
+### ❌ Pitfall 3: Overly Permissive Database Switching
+
+```json
+// Dangerous in production
+{
+  "args": [
+    "mcp-server-motherduck",
+    "--allow-switch-databases",
+    "--read-write"
+  ]
+}
+```
+
+**Why:** AI assistant can switch to and modify any database, including:
+- System databases
+- Other users' databases
+- Sensitive production databases
+
+## Resources
+
+- [MotherDuck Remote MCP Documentation](https://motherduck.com/docs/sql-reference/mcp/)
+- [DuckDB Securing Guide](https://duckdb.org/docs/stable/operations_manual/securing_duckdb/overview)
+- [MotherDuck Service Accounts Guide](https://motherduck.com/docs/key-tasks/service-accounts-guide/)
+- [MotherDuck Read-Scaling Tokens](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/read-scaling/#creating-a-read-scaling-token)
+- [MotherDuck SaaS Mode](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#authentication-using-saas-mode)

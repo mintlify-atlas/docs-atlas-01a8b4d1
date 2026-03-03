@@ -1,0 +1,164 @@
+---
+title: list_databases
+description: List all databases available in the current connection
+---
+
+## Overview
+
+List all databases available in the connection with their names and types. This tool is particularly useful when multiple DuckDB databases are attached or when connected to MotherDuck.
+
+For MotherDuck connections, it uses the `MD_ALL_DATABASES()` function to list all databases. For local DuckDB connections, it uses the `duckdb_databases()` system function.
+
+Internal databases (`system` and `temp`) are automatically excluded from the results.
+
+## Parameters
+
+This tool does not require any input parameters.
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  Indicates whether the operation completed successfully.
+</ResponseField>
+
+<ResponseField name="databases" type="array" required>
+  Array of database objects. Each object contains:
+  - `name` (string): Database name or alias
+  - `type` (string): Database type (e.g., "motherduck", "duckdb", "sqlite")
+</ResponseField>
+
+<ResponseField name="databaseCount" type="integer" required>
+  Total number of databases returned (excludes system and temp databases).
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message when success is false.
+</ResponseField>
+
+<ResponseField name="errorType" type="string">
+  Type of error that occurred.
+</ResponseField>
+
+## Examples
+
+### MotherDuck Connection with Multiple Databases
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "databases": [
+    {
+      "name": "my_db",
+      "type": "motherduck"
+    },
+    {
+      "name": "analytics",
+      "type": "motherduck"
+    },
+    {
+      "name": "shared_data",
+      "type": "motherduck"
+    }
+  ],
+  "databaseCount": 3
+}
+```
+
+### Local DuckDB with Single Database
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "databases": [
+    {
+      "name": "main",
+      "type": "duckdb"
+    }
+  ],
+  "databaseCount": 1
+}
+```
+
+### Local DuckDB with Attached Databases
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "databases": [
+    {
+      "name": "main",
+      "type": "duckdb"
+    },
+    {
+      "name": "warehouse",
+      "type": "duckdb"
+    },
+    {
+      "name": "archive",
+      "type": "duckdb"
+    }
+  ],
+  "databaseCount": 3
+}
+```
+
+### In-Memory Database
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "databases": [
+    {
+      "name": "memory",
+      "type": "duckdb"
+    }
+  ],
+  "databaseCount": 1
+}
+```
+
+### Error Response
+
+**Response:**
+
+```json
+{
+  "success": false,
+  "error": "Failed to query database catalog",
+  "errorType": "CatalogException"
+}
+```
+
+## Use Cases
+
+### When to Use list_databases
+
+1. **MotherDuck Connections**: Discover all available databases in your MotherDuck account
+2. **Multi-Database Setups**: Understand which databases are attached in a local DuckDB session
+3. **Database Discovery**: Before querying data, verify which databases are accessible
+4. **Context Building**: Help AI assistants understand the database environment before executing queries
+
+### When NOT to Use list_databases
+
+- **Single Local Database**: For simple single-file DuckDB connections, you typically know the database name already
+- **In-Memory Only**: If working exclusively with `:memory:`, listing databases is usually unnecessary
+
+## Tool Annotations
+
+<Note>
+  This tool is always read-only with `readOnlyHint: true` and `destructiveHint: false`, regardless of server mode.
+</Note>
+
+## Related Tools
+
+- Use [list_tables](/api-reference/tools/list-tables) to see tables within a specific database
+- Use [list_columns](/api-reference/tools/list-columns) to see columns within a specific table
+- Use [execute_query](/api-reference/tools/execute-query) to query data from discovered databases

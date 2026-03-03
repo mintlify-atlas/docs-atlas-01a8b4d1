@@ -1,0 +1,138 @@
+---
+title: Installation
+description: Install MCP Server MotherDuck using uv, uvx, or pip
+---
+
+## Prerequisites
+
+MCP Server MotherDuck requires Python 3.10 or higher and the `uv` package manager.
+
+<Steps>
+  <Step title="Install uv">
+    Install `uv` using one of the following methods:
+
+    <CodeGroup>
+      ```bash pip
+      pip install uv
+      ```
+
+      ```bash Homebrew (macOS/Linux)
+      brew install uv
+      ```
+
+      ```bash Official installer (Unix)
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+      ```
+
+      ```bash Official installer (Windows)
+      powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+      ```
+    </CodeGroup>
+
+    Visit the [uv documentation](https://docs.astral.sh/uv/getting-started/installation/) for more installation options.
+  </Step>
+</Steps>
+
+## Installation Methods
+
+Choose your preferred installation method:
+
+<CodeGroup>
+  ```bash uvx (Recommended)
+  # Run directly without installation
+  uvx mcp-server-motherduck --help
+  ```
+
+  ```bash pip
+  # Install globally with pip
+  pip install mcp-server-motherduck
+  
+  # Verify installation
+  mcp-server-motherduck --help
+  ```
+
+  ```bash uv
+  # Install with uv
+  uv pip install mcp-server-motherduck
+  
+  # Verify installation
+  mcp-server-motherduck --help
+  ```
+</CodeGroup>
+
+<Tip>
+  We recommend using `uvx` for the simplest experience. It runs the package directly without requiring a global installation.
+</Tip>
+
+## Verify Installation
+
+Test that the installation was successful:
+
+```bash
+mcp-server-motherduck --help
+```
+
+You should see output showing the available command-line options:
+
+```
+MotherDuck MCP Server - Execute SQL queries via DuckDB/MotherDuck.
+
+Options:
+  --port INTEGER                  Port to listen on for HTTP transport
+  --host TEXT                     Host to bind the MCP server
+  --transport [stdio|http|sse|stream]
+                                  Transport type
+  --db-path TEXT                  Path to local DuckDB database file or
+                                  MotherDuck database
+  --read-write                    Enable write access to the database
+  ...
+```
+
+## Next Steps
+
+<Card
+  title="Quickstart Guide"
+  icon="rocket"
+  href="/quickstart"
+>
+  Learn how to configure MCP Server MotherDuck with your AI assistant or IDE
+</Card>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="spawn uvx ENOENT error">
+    If you encounter a `spawn uvx ENOENT` error, your client may not be able to find the `uvx` command. 
+    
+    **Solution**: Specify the full path to `uvx` in your configuration:
+    
+    ```bash
+    # Find the uvx path
+    which uvx
+    ```
+    
+    Then use the full path in your MCP configuration (e.g., `/usr/local/bin/uvx` or `/home/username/.local/bin/uvx`).
+  </Accordion>
+
+  <Accordion title="Python version error">
+    MCP Server MotherDuck requires Python 3.10 or higher.
+    
+    **Check your Python version**:
+    ```bash
+    python --version
+    ```
+    
+    If you need to upgrade, visit [python.org](https://www.python.org/downloads/) or use a version manager like [pyenv](https://github.com/pyenv/pyenv).
+  </Accordion>
+
+  <Accordion title="Permission denied errors">
+    If you encounter permission errors during installation:
+    
+    - **With pip**: Try installing with the `--user` flag:
+      ```bash
+      pip install --user mcp-server-motherduck
+      ```
+    
+    - **With uv**: Use `uvx` instead, which doesn't require global installation
+  </Accordion>
+</AccordionGroup>

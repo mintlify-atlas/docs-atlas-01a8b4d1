@@ -1,0 +1,411 @@
+---
+title: MotherDuck Integration
+description: Connect to MotherDuck cloud databases and leverage serverless analytics
+---
+
+## Connecting to MotherDuck
+
+MotherDuck is a serverless analytics platform built on DuckDB. The MCP server supports both read-write and read-scaling connections.
+
+### Read-Write Connection
+
+For full read and write access to your MotherDuck databases:
+
+<CodeGroup>
+```json Claude Desktop
+{
+  "mcpServers": {
+    "MotherDuck (local, r/w)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "md:",
+        "--read-write"
+      ],
+      "env": {
+        "motherduck_token": "<YOUR_MOTHERDUCK_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+```bash CLI
+claude mcp add --scope user motherduck \
+  --transport stdio \
+  --env motherduck_token=YOUR_TOKEN \
+  -- uvx mcp-server-motherduck --db-path md: --read-write
+```
+</CodeGroup>
+
+<Note>
+Get your MotherDuck token from [motherduck.com/settings/tokens](https://motherduck.com/settings/tokens)
+</Note>
+
+### Read-Scaling Connection
+
+For high-performance read-only access with automatic scaling:
+
+<CodeGroup>
+```json Claude Desktop
+{
+  "mcpServers": {
+    "MotherDuck (read-scaling)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "md:"
+      ],
+      "env": {
+        "motherduck_token": "<YOUR_READ_SCALING_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+```bash CLI
+claude mcp add --scope user motherduck-readonly \
+  --transport stdio \
+  --env motherduck_token=YOUR_READ_SCALING_TOKEN \
+  -- uvx mcp-server-motherduck --db-path md:
+```
+</CodeGroup>
+
+<Warning>
+Read-scaling connections require a [read-scaling token](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/read-scaling/#creating-a-read-scaling-token), not a regular token.
+</Warning>
+
+### SaaS Mode (Secure Deployments)
+
+SaaS mode restricts local filesystem access for secure third-party deployments:
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck (SaaS)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "md:",
+        "--read-write",
+        "--motherduck-saas-mode"
+      ],
+      "env": {
+        "motherduck_token": "<SERVICE_ACCOUNT_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+<Tip>
+For production deployments, use [service accounts](https://motherduck.com/docs/key-tasks/service-accounts-guide/) with read-scaling tokens and enable SaaS mode to restrict local access.
+</Tip>
+
+## Querying MotherDuck Databases
+
+### Query Shared Sample Data
+
+MotherDuck provides sample datasets for exploration:
+
+<CodeGroup>
+```json Movies Dataset
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT title, year, rating FROM sample_data.kaggle.movies WHERE year > 2020 ORDER BY rating DESC LIMIT 5"
+  }
+}
+```
+
+```json Hacker News Dataset
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT type, COUNT(*) as cnt FROM sample_data.hn.hacker_news GROUP BY type ORDER BY cnt DESC LIMIT 5"
+  }
+}
+```
+</CodeGroup>
+
+### List MotherDuck Databases
+
+Use the `list_databases` tool to see all available databases:
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "list_databases",
+  "arguments": {}
+}
+```
+
+```json Response
+{
+  "success": true,
+  "databases": [
+    {"name": "my_db", "type": "motherduck"},
+    {"name": "sample_data", "type": "motherduck"},
+    {"name": "analytics", "type": "motherduck"}
+  ],
+  "databaseCount": 3
+}
+```
+</CodeGroup>
+
+### Query Your Own Databases
+
+<CodeGroup>
+```sql Switch Database
+USE my_db;
+```
+
+```sql Create Table
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY,
+  name VARCHAR,
+  email VARCHAR,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+```sql Insert Data
+INSERT INTO users (id, name, email) VALUES
+  (1, 'Alice', 'alice@example.com'),
+  (2, 'Bob', 'bob@example.com'),
+  (3, 'Charlie', 'charlie@example.com');
+```
+
+```sql Query Data
+SELECT * FROM my_db.main.users WHERE created_at > CURRENT_DATE - INTERVAL 7 DAYS;
+```
+</CodeGroup>
+
+### Cross-Database Queries
+
+Query across multiple databases in a single SQL statement:
+
+```sql
+SELECT 
+  u.name,
+  COUNT(o.id) as order_count,
+  SUM(o.amount) as total_spent
+FROM my_db.main.users u
+LEFT JOIN analytics.sales.orders o ON u.id = o.user_id
+GROUP BY u.name
+ORDER BY total_spent DESC
+LIMIT 10
+```
+
+## Attaching Multiple Databases
+
+You can attach and query multiple MotherDuck databases simultaneously.
+
+### Attach Additional Databases
+
+```sql
+ATTACH 'md:analytics' AS analytics;
+ATTACH 'md:warehouse' AS warehouse;
+```
+
+### List Attached Databases
+
+<CodeGroup>
+```json Tool Call
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT database_name, type FROM duckdb_databases() WHERE database_name NOT IN ('system', 'temp')"
+  }
+}
+```
+
+```json Response
+{
+  "success": true,
+  "columns": ["database_name", "type"],
+  "rows": [
+    ["my_db", "duckdb"],
+    ["analytics", "duckdb"],
+    ["warehouse", "duckdb"],
+    ["sample_data", "duckdb"]
+  ],
+  "rowCount": 4
+}
+```
+</CodeGroup>
+
+### Query Across Attached Databases
+
+```sql
+SELECT 
+  'my_db' as source,
+  COUNT(*) as record_count 
+FROM my_db.main.users
+
+UNION ALL
+
+SELECT 
+  'analytics' as source,
+  COUNT(*) as record_count 
+FROM analytics.main.events
+
+UNION ALL
+
+SELECT 
+  'warehouse' as source,
+  COUNT(*) as record_count 
+FROM warehouse.main.transactions
+```
+
+## MotherDuck-Specific Features
+
+### Check Current Database
+
+```json
+{
+  "name": "execute_query",
+  "arguments": {
+    "sql": "SELECT current_database() as db"
+  }
+}
+```
+
+### MotherDuck Metadata Function
+
+MotherDuck provides special functions for database metadata:
+
+```sql
+SELECT alias, type, status 
+FROM MD_ALL_DATABASES() 
+WHERE alias IS NOT NULL
+ORDER BY alias;
+```
+
+### Check Connection Type
+
+Verify if you're using a read-scaling connection:
+
+```sql
+SELECT * FROM __md_duckling_id();
+```
+
+<Note>
+Read-scaling connections have duckling IDs ending with `.rs.{number}` (e.g., `my_database.rs.3`), while read-write connections end with `.rw`.
+</Note>
+
+## Hybrid Local + Cloud Queries
+
+Combine local DuckDB files with MotherDuck cloud databases in the same query.
+
+### Attach Local Database to MotherDuck Session
+
+```sql
+ATTACH '/path/to/local.duckdb' AS local_db (READ_ONLY);
+```
+
+### Query Local and Cloud Together
+
+```sql
+SELECT 
+  'cloud' as source,
+  COUNT(*) as users
+FROM my_db.main.users
+
+UNION ALL
+
+SELECT 
+  'local' as source,
+  COUNT(*) as users
+FROM local_db.main.users
+```
+
+### Export Cloud Data to Local
+
+```sql
+CREATE TABLE local_db.main.cloud_export AS 
+SELECT * FROM my_db.main.large_table 
+WHERE created_at > '2024-01-01';
+```
+
+## Connection Parameters
+
+Customize MotherDuck connection behavior with additional parameters:
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "md:",
+        "--read-write",
+        "--motherduck-connection-parameters", "session_hint=analytics&dbinstance_inactivity_ttl=0s"
+      ],
+      "env": {
+        "motherduck_token": "<YOUR_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+### Default Parameters
+
+The server includes these parameters by default:
+- `session_hint=mcp` - Identifies MCP sessions in MotherDuck logs
+- `dbinstance_inactivity_ttl=0s` - Keeps connections alive indefinitely
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Read-Scaling for Analytics" icon="gauge-high">
+    Read-scaling tokens provide better performance for read-heavy analytical workloads with automatic horizontal scaling.
+  </Card>
+  
+  <Card title="Service Accounts for Production" icon="shield">
+    Use [service accounts](https://motherduck.com/docs/key-tasks/service-accounts-guide/) instead of personal tokens for production deployments.
+  </Card>
+  
+  <Card title="Enable SaaS Mode" icon="lock">
+    When giving third-party access, enable `--motherduck-saas-mode` to restrict local filesystem access.
+  </Card>
+  
+  <Card title="Filter Cloud Queries" icon="filter">
+    Always use WHERE clauses and LIMIT when querying large cloud datasets to minimize data transfer.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Token Authentication Errors
+
+**Error**: "Please set the `motherduck_token` or `MOTHERDUCK_TOKEN` as an environment variable"
+
+**Solution**: Set the token in your MCP configuration:
+
+```json
+"env": {
+  "motherduck_token": "your_token_here"
+}
+```
+
+### Read-Scaling Token Required
+
+**Error**: "The --read-only flag with MotherDuck requires a read-scaling token"
+
+**Solution**: Either:
+1. Use a read-scaling token instead of a regular token, OR
+2. Add `--read-write` flag to use regular tokens
+
+### Connection Timeout
+
+**Error**: Connection timeouts or slow queries
+
+**Solution**: Check your network connection and MotherDuck service status. Consider using connection parameters:
+
+```bash
+--motherduck-connection-parameters "dbinstance_inactivity_ttl=300s"
+```

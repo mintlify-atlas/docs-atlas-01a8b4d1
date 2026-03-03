@@ -1,0 +1,336 @@
+---
+title: Read-Only vs Read-Write
+description: Understanding access control modes in MCP Server MotherDuck
+---
+
+Starting with version 1.0, MCP Server MotherDuck defaults to **read-only mode** for enhanced security and concurrency. This guide explains the differences between read-only and read-write modes and when to use each.
+
+## Default Behavior: Read-Only Mode
+
+By default, the server runs in read-only mode to provide:
+
+- **Safety**: Prevents accidental data modifications
+- **Concurrent access**: Multiple processes can read the same database simultaneously
+- **Security**: Reduces risk when giving third parties access to your data
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (read-only)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "/path/to/your.duckdb"]
+    }
+  }
+}
+```
+
+<Note>
+  **Migrating from v0.x?** The server now runs in read-only mode by default. Add `--read-write` to enable write access.
+</Note>
+
+## Enabling Write Access
+
+To enable write operations (INSERT, UPDATE, DELETE, CREATE TABLE, etc.), add the `--read-write` flag:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (read-write)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "/path/to/your.duckdb", "--read-write"]
+    }
+  }
+}
+```
+
+### Examples by Connection Type
+
+<Tabs>
+  <Tab title="In-Memory">
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB (in-memory, r/w)": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", ":memory:",
+            "--read-write",
+            "--allow-switch-databases"
+          ]
+        }
+      }
+    }
+    ```
+    <Note>
+      In-memory databases always require `--read-write` since DuckDB doesn't support read-only mode for `:memory:` databases.
+    </Note>
+  </Tab>
+  
+  <Tab title="Local File">
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB (local, r/w)": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "/absolute/path/to/your.duckdb",
+            "--read-write"
+          ]
+        }
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="MotherDuck">
+    ```json
+    {
+      "mcpServers": {
+        "MotherDuck (r/w)": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "md:",
+            "--read-write"
+          ],
+          "env": {
+            "motherduck_token": "<YOUR_MOTHERDUCK_TOKEN>"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="S3">
+    ```json
+    {
+      "mcpServers": {
+        "DuckDB (S3, read-only)": {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path", "s3://bucket/path.duckdb"
+          ],
+          "env": {
+            "AWS_ACCESS_KEY_ID": "<KEY>",
+            "AWS_SECRET_ACCESS_KEY": "<SECRET>"
+          }
+        }
+      }
+    }
+    ```
+    <Note>
+      S3 databases are always attached as read-only, even with `--read-write` flag.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Read-Only Mode Benefits
+
+### 1. Concurrent Access
+
+Read-only mode enables multiple processes to access the same database simultaneously without file locking issues.
+
+**Without ephemeral connections** (persistent connection):
+```bash
+# This will hold a file lock
+uvx mcp-server-motherduck --db-path /path/to/db.duckdb --no-ephemeral-connections
+```
+
+**With ephemeral connections** (default for read-only local files):
+```bash
+# Creates a new connection for each query, releases lock immediately
+uvx mcp-server-motherduck --db-path /path/to/db.duckdb
+```
+
+<Tip>
+  Ephemeral connections are enabled by default for read-only local DuckDB files. This keeps the file unlocked so other processes can write to it.
+</Tip>
+
+### 2. Safety from Accidental Modifications
+
+Read-only mode prevents accidental data changes:
+
+- No INSERT, UPDATE, or DELETE operations
+- No CREATE or DROP statements
+- No schema modifications
+- Tables and views cannot be altered
+
+### 3. Enhanced Security
+
+When sharing database access with AI assistants or third parties, read-only mode reduces risk:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (safe sharing)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "/path/to/shared.duckdb"]
+    }
+  }
+}
+```
+
+<Warning>
+  Read-only mode alone is not sufficient for production deployments with third-party access. See the [Security guide](/guides/security) for comprehensive security practices.
+</Warning>
+
+## MotherDuck: Token Types
+
+MotherDuck connections use different token types depending on the access mode:
+
+### Regular Tokens (Read-Write)
+
+Regular MotherDuck tokens require `--read-write` mode:
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck (r/w)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "md:", "--read-write"],
+      "env": {
+        "motherduck_token": "<YOUR_REGULAR_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+### Read-Scaling Tokens (Read-Only)
+
+For read-only MotherDuck access, use a [read-scaling token](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/read-scaling/#creating-a-read-scaling-token):
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck (read-only)": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck", "--db-path", "md:"],
+      "env": {
+        "motherduck_token": "<YOUR_READ_SCALING_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+<Warning>
+  **MotherDuck connections in read-only mode require a read-scaling token.** Regular tokens will fail with an error message.
+  
+  Error: `The --read-only flag with MotherDuck requires a read-scaling token. You appear to be using a read/write token.`
+</Warning>
+
+### Creating Read-Scaling Tokens
+
+Read-scaling tokens provide:
+- Read-only access to MotherDuck databases
+- Better performance for read-heavy workloads
+- Cost-effective scaling for analytics
+
+Learn how to create read-scaling tokens in the [MotherDuck documentation](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#read-scaling-tokens).
+
+## Ephemeral Connections for Local Files
+
+When connecting to local DuckDB files in read-only mode, the server uses **ephemeral connections** by default.
+
+### How Ephemeral Connections Work
+
+```python
+# For each query:
+1. Open connection to the database file
+2. Execute the query
+3. Return results
+4. Close connection (release file lock)
+```
+
+This behavior is controlled by the `--ephemeral-connections` flag (default: `true`).
+
+### Disabling Ephemeral Connections
+
+To maintain a persistent connection:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (persistent)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path", "/path/to/db.duckdb",
+        "--no-ephemeral-connections"
+      ]
+    }
+  }
+}
+```
+
+<Note>
+  Ephemeral connections only apply to read-only local DuckDB files. They are not used for:
+  - In-memory databases (`:memory:`)
+  - MotherDuck connections (`md:`)
+  - S3 databases (`s3://`)
+  - Read-write local files
+</Note>
+
+## When to Use Each Mode
+
+### Use Read-Only Mode When:
+
+- Querying existing databases without modifications
+- Sharing data access with AI assistants
+- Running analytics and reports
+- Allowing concurrent access from multiple processes
+- Prioritizing data safety and integrity
+- Working with production databases
+
+### Use Read-Write Mode When:
+
+- Building data pipelines that transform and load data
+- Creating and maintaining databases
+- Developing ETL workflows
+- Testing data modifications
+- Working with in-memory databases (required)
+- Full control over database operations is needed
+
+## Command Summary
+
+| Mode | Flag | Use Case |
+|------|------|----------|
+| Read-Only | (default) | Safe querying, concurrent access |
+| Read-Write | `--read-write` | Data modifications, ETL, development |
+| Ephemeral Connections | `--ephemeral-connections` (default) | Concurrent access to local files |
+| Persistent Connections | `--no-ephemeral-connections` | Maintain file lock for read-only |
+
+## Migration from v0.x
+
+If you're upgrading from version 0.x, note these changes:
+
+<Warning>
+  - **Read-only by default**: Add `--read-write` to enable write access
+  - **Default database changed**: `--db-path` default changed from `md:` to `:memory:`. Add `--db-path md:` explicitly for MotherDuck
+  - **MotherDuck read-only requires read-scaling token**: Use read-scaling tokens for read-only MotherDuck access
+</Warning>
+
+Update your configuration:
+
+```json
+// Old (v0.x)
+{
+  "command": "uvx",
+  "args": ["mcp-server-motherduck"]
+}
+
+// New (v1.0+) - for read-write access
+{
+  "command": "uvx",
+  "args": [
+    "mcp-server-motherduck",
+    "--db-path", ":memory:",
+    "--read-write"
+  ]
+}
+```

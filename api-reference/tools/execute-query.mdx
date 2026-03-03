@@ -1,0 +1,217 @@
+---
+title: execute_query
+description: Execute SQL queries against DuckDB or MotherDuck databases
+---
+
+## Overview
+
+Execute a SQL query on the DuckDB or MotherDuck database. Unqualified table names resolve to `current_database()` and `current_schema()` automatically. Fully qualified names (database.schema.table) are only needed when multiple DuckDB databases are attached or when connected to MotherDuck.
+
+## Parameters
+
+<ParamField path="sql" type="string" required>
+  SQL query to execute using DuckDB SQL dialect. Supports all DuckDB SQL operations including SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, aggregations, window functions, and analytical queries.
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  Indicates whether the query executed successfully.
+</ResponseField>
+
+<ResponseField name="columns" type="array" required>
+  Array of column names returned by the query. Empty for non-SELECT statements.
+</ResponseField>
+
+<ResponseField name="columnTypes" type="array" required>
+  Array of column data types corresponding to the columns. DuckDB type names (e.g., "VARCHAR", "BIGINT", "DOUBLE", "DATE", "TIMESTAMP").
+</ResponseField>
+
+<ResponseField name="rows" type="array" required>
+  Array of rows, where each row is an array of values. Maximum of 1024 rows returned by default (configurable with --max-rows).
+</ResponseField>
+
+<ResponseField name="rowCount" type="integer" required>
+  Number of rows returned in the response.
+</ResponseField>
+
+<ResponseField name="truncated" type="boolean">
+  Present when results exceed the maximum row or character limits. Indicates that not all data was returned.
+</ResponseField>
+
+<ResponseField name="warning" type="string">
+  Warning message when results are truncated, explaining the limit that was reached.
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message when success is false. Contains detailed error information.
+</ResponseField>
+
+<ResponseField name="errorType" type="string">
+  Type of error that occurred (e.g., "CatalogException", "ParserException", "BinderException").
+</ResponseField>
+
+## Examples
+
+### SELECT Query
+
+```json
+{
+  "sql": "SELECT id, name, created_at FROM users WHERE active = true LIMIT 5"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "columns": ["id", "name", "created_at"],
+  "columnTypes": ["BIGINT", "VARCHAR", "TIMESTAMP"],
+  "rows": [
+    [1, "Alice Smith", "2024-01-15 10:30:00"],
+    [2, "Bob Johnson", "2024-01-16 14:20:00"],
+    [3, "Carol White", "2024-01-17 09:15:00"],
+    [4, "David Brown", "2024-01-18 16:45:00"],
+    [5, "Eve Davis", "2024-01-19 11:30:00"]
+  ],
+  "rowCount": 5
+}
+```
+
+### Aggregation Query
+
+```json
+{
+  "sql": "SELECT department, COUNT(*) as employee_count, AVG(salary) as avg_salary FROM employees GROUP BY department ORDER BY employee_count DESC"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "columns": ["department", "employee_count", "avg_salary"],
+  "columnTypes": ["VARCHAR", "BIGINT", "DOUBLE"],
+  "rows": [
+    ["Engineering", 45, 125000.50],
+    ["Sales", 32, 95000.25],
+    ["Marketing", 18, 85000.75],
+    ["HR", 12, 75000.00]
+  ],
+  "rowCount": 4
+}
+```
+
+### INSERT Query
+
+```json
+{
+  "sql": "INSERT INTO products (name, price, category) VALUES ('Widget Pro', 29.99, 'Tools')"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "columns": ["Count"],
+  "columnTypes": ["BIGINT"],
+  "rows": [
+    [1]
+  ],
+  "rowCount": 1
+}
+```
+
+### CREATE TABLE Query
+
+```json
+{
+  "sql": "CREATE TABLE analytics_summary AS SELECT date_trunc('day', event_time) as day, event_type, COUNT(*) as count FROM events WHERE event_time >= '2024-01-01' GROUP BY 1, 2"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "columns": ["Count"],
+  "columnTypes": ["BIGINT"],
+  "rows": [
+    [2847]
+  ],
+  "rowCount": 1
+}
+```
+
+### Truncated Results
+
+```json
+{
+  "sql": "SELECT * FROM large_table"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "columns": ["id", "data", "timestamp"],
+  "columnTypes": ["BIGINT", "VARCHAR", "TIMESTAMP"],
+  "rows": [
+    [1, "data...", "2024-01-01 00:00:00"],
+    [2, "data...", "2024-01-01 00:01:00"]
+  ],
+  "rowCount": 1024,
+  "truncated": true,
+  "warning": "Results limited to 1,024 rows. Query returned more data."
+}
+```
+
+### Error Response
+
+```json
+{
+  "sql": "SELECT * FROM nonexistent_table"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": false,
+  "error": "Catalog Error: Table with name nonexistent_table does not exist!",
+  "errorType": "CatalogException"
+}
+```
+
+## Tool Annotations
+
+<Note>
+  **Read-Only Mode**: When the server is started with `--read-only`, this tool has `readOnlyHint: true` and `destructiveHint: false`. In read-write mode (default), it has `readOnlyHint: false` and `destructiveHint: true`.
+</Note>
+
+## Error Handling
+
+The tool returns structured error responses when queries fail:
+
+- **CatalogException**: Table or column does not exist
+- **ParserException**: SQL syntax error
+- **BinderException**: Invalid column reference or type mismatch
+- **ConstraintException**: Constraint violation (PRIMARY KEY, NOT NULL, etc.)
+- **IOException**: File access or S3 connection issues
+- **TimeoutException**: Query exceeded the configured timeout
+
+## Best Practices
+
+1. **Use LIMIT clauses**: For exploratory queries on large tables, always use LIMIT to avoid overwhelming results
+2. **Qualify table names**: When working with multiple databases, use fully qualified names: `database.schema.table`
+3. **Handle truncation**: Check for the `truncated` field and adjust queries or increase limits if needed
+4. **Error handling**: Always check the `success` field before processing results
+5. **Read-only mode**: Be aware of server mode - write operations will fail in read-only mode

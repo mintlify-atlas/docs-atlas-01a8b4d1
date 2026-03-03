@@ -1,0 +1,118 @@
+---
+title: Introduction
+description: SQL analytics and data engineering for AI Assistants and IDEs
+---
+
+
+
+## What is MCP Server MotherDuck?
+
+MCP Server MotherDuck connects AI assistants to your data using DuckDB's powerful analytical SQL engine. It's a local MCP server that enables AI-powered data analysis, SQL query execution, and data engineering workflows directly from your IDE or AI assistant.
+
+<Note>
+  Looking for a fully-managed remote MCP server for MotherDuck? Check out the [MotherDuck Remote MCP](https://motherduck.com/docs/sql-reference/mcp/) for zero-setup, hosted-by-MotherDuck access.
+</Note>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="Multiple Database Types"
+    icon="database"
+  >
+    Connect to local DuckDB files, in-memory databases, S3-hosted databases, and MotherDuck cloud databases
+  </Card>
+  <Card
+    title="SQL Query Execution"
+    icon="code"
+  >
+    Execute read and write SQL queries using DuckDB's analytical SQL dialect with full OLAP capabilities
+  </Card>
+  <Card
+    title="Database Catalog Browsing"
+    icon="list"
+  >
+    List databases, tables, views, and columns to explore your data schema dynamically
+  </Card>
+  <Card
+    title="Flexible Connection Switching"
+    icon="arrows-rotate"
+  >
+    Switch between different database connections on-the-fly during your session
+  </Card>
+  <Card
+    title="Local & Remote Data"
+    icon="folder-tree"
+  >
+    Query across local and remote databases, ingest data from or export data to local filesystem
+  </Card>
+  <Card
+    title="Security Controls"
+    icon="shield-halved"
+  >
+    Read-only mode by default with configurable write access and security options for production
+  </Card>
+</CardGroup>
+
+## Capabilities
+
+### SQL Analytics
+Execute powerful analytical SQL queries using DuckDB's OLAP engine. Run aggregations, joins, window functions, and complex analytical queries on your data.
+
+### DuckDB & MotherDuck Support
+- **Local DuckDB**: Work with local `.duckdb` files with read-only or read-write access
+- **In-Memory**: Create temporary databases for development and testing
+- **S3 Integration**: Connect to DuckDB files hosted on S3
+- **MotherDuck Cloud**: Access your MotherDuck cloud databases with full read-write capabilities
+
+### Database Management
+Browse database catalogs, list tables and views, inspect column schemas, and manage multiple database connections within a single session.
+
+## Remote vs Local MCP
+
+| Feature | [Remote MCP](https://motherduck.com/docs/sql-reference/mcp/) | **Local MCP** (this server) |
+|---------|---------------|---------------------------|
+| **Hosting** | Hosted by MotherDuck | Runs locally/self-hosted |
+| **Setup** | Zero-setup | Requires local installation |
+| **Access** | Read-write supported | Read-write supported |
+| **Local filesystem** | - | Query across local and remote databases, ingest data from / export data to local filesystem |
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install MCP Server MotherDuck using uvx, pip, or uv
+  </Card>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Connect to DuckDB or MotherDuck and run your first query
+  </Card>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/configuration/command-line-parameters"
+  >
+    Configure database paths, security settings, and query limits
+  </Card>
+  <Card
+    title="Tools Reference"
+    icon="wrench"
+    href="/api-reference/tools/execute-query"
+  >
+    Explore available MCP tools for SQL execution and catalog browsing
+  </Card>
+</CardGroup>
+
+## Resources
+
+- [MotherDuck MCP Documentation](https://motherduck.com/docs/sql-reference/mcp/)
+- [Close the Loop: Faster Data Pipelines with MCP, DuckDB & AI (Blog)](https://motherduck.com/blog/faster-data-pipelines-with-mcp-duckdb-ai/)
+- [Faster Data Pipelines with MCP and DuckDB (YouTube)](https://www.youtube.com/watch?v=yG1mv8ZRxcU)
+- [GitHub Repository](https://github.com/motherduckdb/mcp-server-motherduck)

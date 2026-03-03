@@ -1,80 +1,387 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with MCP Server MotherDuck in minutes
 ---
 
-## Get started in three steps
+## Choose Your Setup
 
-Get your documentation site running locally and make your first customization.
+Select the database connection type that matches your use case:
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+<CardGroup cols={3}>
+  <Card title="In-Memory" icon="memory">
+    Development and testing with a temporary database
+  </Card>
+  <Card title="Local File" icon="file">
+    Connect to a local DuckDB file (read-only or read-write)
+  </Card>
+  <Card title="MotherDuck" icon="cloud">
+    Cloud-based DuckDB with full read-write access
+  </Card>
 </CardGroup>
 
+## Configuration Examples
+
+Add one of these configurations to your MCP client's configuration file:
+
+<Tabs>
+  <Tab title="Claude Desktop">
+    **Configuration file location**: Settings → Developer → Edit Config
+
+    <Tabs>
+      <Tab title="In-Memory (Dev Mode)">
+        ```json
+        {
+          "mcpServers": {
+            "DuckDB (in-memory, r/w)": {
+              "command": "uvx",
+              "args": [
+                "mcp-server-motherduck",
+                "--db-path",
+                ":memory:",
+                "--read-write",
+                "--allow-switch-databases"
+              ]
+            }
+          }
+        }
+        ```
+        
+        Full flexibility with no guardrails — read-write access and the ability to switch to any database (local files, S3, or MotherDuck) at runtime.
+      </Tab>
+      
+      <Tab title="Local File (Read-Only)">
+        ```json
+        {
+          "mcpServers": {
+            "DuckDB (read-only)": {
+              "command": "uvx",
+              "args": [
+                "mcp-server-motherduck",
+                "--db-path",
+                "/absolute/path/to/your.duckdb"
+              ]
+            }
+          }
+        }
+        ```
+        
+        Connects to a specific DuckDB file in read-only mode. Won't hold on to the file lock, so convenient to use alongside a write connection to the same DuckDB file.
+      </Tab>
+      
+      <Tab title="MotherDuck (Read-Write)">
+        ```json
+        {
+          "mcpServers": {
+            "MotherDuck (local, r/w)": {
+              "command": "uvx",
+              "args": [
+                "mcp-server-motherduck",
+                "--db-path",
+                "md:",
+                "--read-write"
+              ],
+              "env": {
+                "motherduck_token": "<YOUR_MOTHERDUCK_TOKEN>"
+              }
+            }
+          }
+        }
+        ```
+        
+        Connect to MotherDuck with full read-write capabilities. Get your token from the [MotherDuck console](https://app.motherduck.com/).
+      </Tab>
+    </Tabs>
+  </Tab>
+  
+  <Tab title="Claude Code CLI">
+    Use the `claude mcp add` command:
+
+    <Tabs>
+      <Tab title="In-Memory (Dev Mode)">
+        ```bash
+        claude mcp add --scope user duckdb --transport stdio -- \
+          uvx mcp-server-motherduck \
+          --db-path :memory: \
+          --read-write \
+          --allow-switch-databases
+        ```
+      </Tab>
+      
+      <Tab title="Local File (Read-Only)">
+        ```bash
+        claude mcp add --scope user duckdb --transport stdio -- \
+          uvx mcp-server-motherduck \
+          --db-path /absolute/path/to/db.duckdb
+        ```
+      </Tab>
+      
+      <Tab title="MotherDuck (Read-Write)">
+        ```bash
+        claude mcp add --scope user motherduck --transport stdio \
+          --env motherduck_token=YOUR_TOKEN -- \
+          uvx mcp-server-motherduck \
+          --db-path md: \
+          --read-write
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+  
+  <Tab title="Cursor">
+    **Configuration location**: Settings → MCP → Add new global MCP server
+
+    <Tabs>
+      <Tab title="In-Memory (Dev Mode)">
+        ```json
+        {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path",
+            ":memory:",
+            "--read-write",
+            "--allow-switch-databases"
+          ]
+        }
+        ```
+        
+        Or use the one-click install:
+        
+        <a href="https://cursor.com/en/install-mcp?name=DuckDB&config=eyJjb21tYW5kIjoidXZ4IG1jcC1zZXJ2ZXItbW90aGVyZHVjayAtLWRiLXBhdGggOm1lbW9yeTogLS1yZWFkLXdyaXRlIC0tYWxsb3ctc3dpdGNoLWRhdGFiYXNlcyIsImVudiI6e319">
+          <img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install in Cursor" height="20" />
+        </a>
+      </Tab>
+      
+      <Tab title="Local File (Read-Only)">
+        ```json
+        {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path",
+            "/absolute/path/to/your.duckdb"
+          ]
+        }
+        ```
+      </Tab>
+      
+      <Tab title="MotherDuck (Read-Write)">
+        ```json
+        {
+          "command": "uvx",
+          "args": [
+            "mcp-server-motherduck",
+            "--db-path",
+            "md:",
+            "--read-write"
+          ],
+          "env": {
+            "motherduck_token": "<YOUR_MOTHERDUCK_TOKEN>"
+          }
+        }
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+  
+  <Tab title="VS Code">
+    **Configuration location**: `Ctrl+Shift+P` → "Preferences: Open User Settings (JSON)"
+
+    Add to your `settings.json`:
+
+    <Tabs>
+      <Tab title="In-Memory (Dev Mode)">
+        ```json
+        {
+          "mcp.servers": {
+            "DuckDB (in-memory, r/w)": {
+              "command": "uvx",
+              "args": [
+                "mcp-server-motherduck",
+                "--db-path",
+                ":memory:",
+                "--read-write",
+                "--allow-switch-databases"
+              ]
+            }
+          }
+        }
+        ```
+      </Tab>
+      
+      <Tab title="Local File (Read-Only)">
+        ```json
+        {
+          "mcp.servers": {
+            "DuckDB (read-only)": {
+              "command": "uvx",
+              "args": [
+                "mcp-server-motherduck",
+                "--db-path",
+                "/absolute/path/to/your.duckdb"
+              ]
+            }
+          }
+        }
+        ```
+      </Tab>
+      
+      <Tab title="MotherDuck (Read-Write)">
+        ```json
+        {
+          "mcp.servers": {
+            "MotherDuck (local, r/w)": {
+              "command": "uvx",
+              "args": [
+                "mcp-server-motherduck",
+                "--db-path",
+                "md:",
+                "--read-write"
+              ],
+              "env": {
+                "motherduck_token": "<YOUR_MOTHERDUCK_TOKEN>"
+              }
+            }
+          }
+        }
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+  
+  <Tab title="Codex CLI">
+    Use the `codex mcp add` command:
+
+    <Tabs>
+      <Tab title="In-Memory (Dev Mode)">
+        ```bash
+        codex mcp add duckdb -- \
+          uvx mcp-server-motherduck \
+          --db-path :memory: \
+          --read-write \
+          --allow-switch-databases
+        ```
+      </Tab>
+      
+      <Tab title="Local File (Read-Only)">
+        ```bash
+        codex mcp add duckdb -- \
+          uvx mcp-server-motherduck \
+          --db-path /absolute/path/to/db.duckdb
+        ```
+      </Tab>
+      
+      <Tab title="MotherDuck (Read-Write)">
+        ```bash
+        codex mcp add motherduck \
+          --env motherduck_token=YOUR_TOKEN -- \
+          uvx mcp-server-motherduck \
+          --db-path md: \
+          --read-write
+        ```
+      </Tab>
+    </Tabs>
+  </Tab>
+</Tabs>
+
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  **Important**: Replace `/absolute/path/to/your.duckdb` with the actual absolute path to your DuckDB file, and `<YOUR_MOTHERDUCK_TOKEN>` with your MotherDuck access token.
 </Note>
+
+## Run Your First Query
+
+After configuring your MCP client, restart the application and try executing a SQL query:
+
+```sql
+-- Create a sample table
+CREATE TABLE users AS 
+  SELECT * FROM (
+    VALUES 
+      (1, 'Alice', 'alice@example.com'),
+      (2, 'Bob', 'bob@example.com'),
+      (3, 'Charlie', 'charlie@example.com')
+  ) AS t(id, name, email);
+
+-- Query the data
+SELECT * FROM users WHERE name LIKE 'A%';
+```
+
+You can ask your AI assistant to:
+- "Execute a SQL query to show all users"
+- "List all tables in the database"
+- "Describe the schema of the users table"
+- "Create a summary of data by grouping"
+
+<Tip>
+  Use the `execute_query` tool to run any DuckDB SQL query. The server supports the full DuckDB SQL dialect including CTEs, window functions, and analytical operations.
+</Tip>
+
+## S3 Database Connections
+
+You can also connect to DuckDB files hosted on S3:
+
+```json
+{
+  "mcpServers": {
+    "DuckDB (S3)": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-motherduck",
+        "--db-path",
+        "s3://bucket/path/to/database.duckdb"
+      ],
+      "env": {
+        "AWS_ACCESS_KEY_ID": "<YOUR_AWS_KEY>",
+        "AWS_SECRET_ACCESS_KEY": "<YOUR_AWS_SECRET>",
+        "AWS_DEFAULT_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Configuration Options"
+    icon="gear"
+    href="/configuration/command-line-parameters"
+  >
+    Explore advanced configuration options for security, performance tuning, and more
+  </Card>
+  
+  <Card
+    title="Available Tools"
+    icon="wrench"
+    href="/api-reference/tools/execute-query"
+  >
+    Learn about all available MCP tools including execute_query, list_tables, and more
+  </Card>
+  
+  <Card
+    title="Security Guide"
+    icon="shield"
+    href="/guides/security"
+  >
+    Secure your MCP server for production deployments with third-party access
+  </Card>
+  
+  <Card
+    title="Troubleshooting"
+    icon="life-ring"
+    href="/guides/troubleshooting"
+  >
+    Common issues and solutions for MCP Server MotherDuck
+  </Card>
+</CardGroup>
+
+## Migration Notes
+
+<Warning>
+  If you're migrating from v0.x, be aware of these important changes:
+  
+  - **Read-only by default**: The server now runs in read-only mode by default. Add `--read-write` to enable write access.
+  - **Default database changed**: `--db-path` default changed from `md:` to `:memory:`. Add `--db-path md:` explicitly for MotherDuck.
+  - **MotherDuck read-only requires read-scaling token**: MotherDuck connections in read-only mode require a [read-scaling token](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#read-scaling-tokens). Regular tokens require `--read-write`.
+</Warning>

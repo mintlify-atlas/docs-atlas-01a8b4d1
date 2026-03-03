@@ -1,0 +1,357 @@
+---
+title: list_columns
+description: List all columns of a table or view
+---
+
+## Overview
+
+List all columns of a table or view with their data types, nullability, and comments. If database or schema parameters are not specified, the tool uses the current database and schema.
+
+This tool queries DuckDB's `duckdb_columns()` system function to retrieve column metadata and automatically determines whether the object is a table or view.
+
+## Parameters
+
+<ParamField path="table" type="string" required>
+  Table or view name to inspect. Can be a simple name (e.g., "customers") or a fully qualified name (e.g., "analytics.main.customers").
+</ParamField>
+
+<ParamField path="database" type="string">
+  Database name containing the table. If not specified, defaults to the current database obtained via `current_database()`.
+</ParamField>
+
+<ParamField path="schema" type="string">
+  Schema name containing the table. If not specified, defaults to the current schema obtained via `current_schema()` (typically "main").
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  Indicates whether the operation completed successfully.
+</ResponseField>
+
+<ResponseField name="database" type="string" required>
+  The database that was queried.
+</ResponseField>
+
+<ResponseField name="schema" type="string" required>
+  The schema that was queried.
+</ResponseField>
+
+<ResponseField name="table" type="string" required>
+  The table or view name that was inspected.
+</ResponseField>
+
+<ResponseField name="objectType" type="string" required>
+  Either "table" or "view".
+</ResponseField>
+
+<ResponseField name="columns" type="array" required>
+  Array of column objects. Each object contains:
+  - `name` (string): Column name
+  - `type` (string): DuckDB data type (e.g., "VARCHAR", "BIGINT", "TIMESTAMP", "DOUBLE")
+  - `nullable` (boolean): Whether the column accepts NULL values
+  - `comment` (string | null): User-defined comment, or null if not set
+</ResponseField>
+
+<ResponseField name="columnCount" type="integer" required>
+  Total number of columns in the table or view.
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message when success is false.
+</ResponseField>
+
+<ResponseField name="errorType" type="string">
+  Type of error that occurred.
+</ResponseField>
+
+## Examples
+
+### Simple Table in Current Database
+
+**Request:**
+
+```json
+{
+  "table": "customers"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "database": "main",
+  "schema": "main",
+  "table": "customers",
+  "objectType": "table",
+  "columns": [
+    {
+      "name": "id",
+      "type": "BIGINT",
+      "nullable": false,
+      "comment": "Primary key"
+    },
+    {
+      "name": "name",
+      "type": "VARCHAR",
+      "nullable": false,
+      "comment": "Customer full name"
+    },
+    {
+      "name": "email",
+      "type": "VARCHAR",
+      "nullable": false,
+      "comment": "Email address"
+    },
+    {
+      "name": "phone",
+      "type": "VARCHAR",
+      "nullable": true,
+      "comment": null
+    },
+    {
+      "name": "created_at",
+      "type": "TIMESTAMP",
+      "nullable": false,
+      "comment": "Account creation timestamp"
+    },
+    {
+      "name": "lifetime_value",
+      "type": "DOUBLE",
+      "nullable": true,
+      "comment": "Total revenue from customer"
+    }
+  ],
+  "columnCount": 6
+}
+```
+
+### Table in Specific Database
+
+**Request:**
+
+```json
+{
+  "table": "orders",
+  "database": "warehouse"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "database": "warehouse",
+  "schema": "main",
+  "table": "orders",
+  "objectType": "table",
+  "columns": [
+    {
+      "name": "order_id",
+      "type": "BIGINT",
+      "nullable": false,
+      "comment": null
+    },
+    {
+      "name": "customer_id",
+      "type": "BIGINT",
+      "nullable": false,
+      "comment": null
+    },
+    {
+      "name": "order_date",
+      "type": "DATE",
+      "nullable": false,
+      "comment": null
+    },
+    {
+      "name": "total_amount",
+      "type": "DECIMAL(18,2)",
+      "nullable": false,
+      "comment": null
+    },
+    {
+      "name": "status",
+      "type": "VARCHAR",
+      "nullable": false,
+      "comment": null
+    }
+  ],
+  "columnCount": 5
+}
+```
+
+### View with Specific Schema
+
+**Request:**
+
+```json
+{
+  "table": "monthly_sales",
+  "database": "analytics",
+  "schema": "reporting"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "database": "analytics",
+  "schema": "reporting",
+  "table": "monthly_sales",
+  "objectType": "view",
+  "columns": [
+    {
+      "name": "month",
+      "type": "DATE",
+      "nullable": true,
+      "comment": null
+    },
+    {
+      "name": "total_revenue",
+      "type": "DECIMAL(18,2)",
+      "nullable": true,
+      "comment": null
+    },
+    {
+      "name": "order_count",
+      "type": "BIGINT",
+      "nullable": true,
+      "comment": null
+    },
+    {
+      "name": "avg_order_value",
+      "type": "DOUBLE",
+      "nullable": true,
+      "comment": null
+    }
+  ],
+  "columnCount": 4
+}
+```
+
+### Table with Complex Types
+
+**Request:**
+
+```json
+{
+  "table": "events"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "database": "main",
+  "schema": "main",
+  "table": "events",
+  "objectType": "table",
+  "columns": [
+    {
+      "name": "event_id",
+      "type": "UUID",
+      "nullable": false,
+      "comment": null
+    },
+    {
+      "name": "event_time",
+      "type": "TIMESTAMP WITH TIME ZONE",
+      "nullable": false,
+      "comment": null
+    },
+    {
+      "name": "user_id",
+      "type": "VARCHAR",
+      "nullable": false,
+      "comment": null
+    },
+    {
+      "name": "properties",
+      "type": "JSON",
+      "nullable": true,
+      "comment": "Event metadata as JSON"
+    },
+    {
+      "name": "tags",
+      "type": "VARCHAR[]",
+      "nullable": true,
+      "comment": "Array of tag strings"
+    }
+  ],
+  "columnCount": 5
+}
+```
+
+### Error - Table Not Found
+
+**Request:**
+
+```json
+{
+  "table": "nonexistent_table"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": false,
+  "error": "Table 'nonexistent_table' not found in database 'main' schema 'main'",
+  "errorType": "CatalogException"
+}
+```
+
+## Fully Qualified Table Names
+
+<Info>
+  You can specify the table using fully qualified names instead of separate parameters:
+  
+  - `database.schema.table` - Full qualification
+  - `database.table` - Uses default schema
+  - `table` - Uses current database and schema
+  
+  However, the separate `database` and `schema` parameters provide more explicit control.
+</Info>
+
+## Default Behavior
+
+<Info>
+  **Current Database**: When no `database` parameter is provided, uses `current_database()` (typically "main" for local files).
+</Info>
+
+<Info>
+  **Current Schema**: When no `schema` parameter is provided, uses `current_schema()` (typically "main").
+</Info>
+
+## Common Column Types
+
+DuckDB supports many data types that may appear in column type fields:
+
+- **Numeric**: `BIGINT`, `INTEGER`, `SMALLINT`, `TINYINT`, `DOUBLE`, `FLOAT`, `DECIMAL(p,s)`
+- **String**: `VARCHAR`, `TEXT`
+- **Date/Time**: `DATE`, `TIMESTAMP`, `TIMESTAMP WITH TIME ZONE`, `TIME`, `INTERVAL`
+- **Boolean**: `BOOLEAN`
+- **Binary**: `BLOB`
+- **Structured**: `JSON`, `STRUCT`, `LIST`, `MAP`
+- **Special**: `UUID`, `ENUM`
+
+## Tool Annotations
+
+<Note>
+  This tool is always read-only with `readOnlyHint: true` and `destructiveHint: false`, regardless of server mode.
+</Note>
+
+## Related Tools
+
+- Use [list_databases](/api-reference/tools/list-databases) to discover available databases
+- Use [list_tables](/api-reference/tools/list-tables) to find tables within a database
+- Use [execute_query](/api-reference/tools/execute-query) to query data from the table

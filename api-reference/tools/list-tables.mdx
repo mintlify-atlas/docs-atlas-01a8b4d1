@@ -1,0 +1,286 @@
+---
+title: list_tables
+description: List all tables and views in a database
+---
+
+## Overview
+
+List all tables and views in a database with their schema, type, and comments. If the database parameter is not specified, the tool uses the current database. This tool helps discover available data structures before querying.
+
+Tables and views are queried using DuckDB's system functions (`duckdb_tables()` and `duckdb_views()`) and returned in a structured format with metadata.
+
+## Parameters
+
+<ParamField path="database" type="string">
+  Database name to list tables from. If not specified, defaults to the current database obtained via `current_database()`.
+</ParamField>
+
+<ParamField path="schema" type="string">
+  Optional schema name to filter results. If not specified, tables and views from all schemas are returned.
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  Indicates whether the operation completed successfully.
+</ResponseField>
+
+<ResponseField name="database" type="string" required>
+  The database that was queried.
+</ResponseField>
+
+<ResponseField name="schema" type="string" required>
+  The schema filter applied. Returns "all" if no schema was specified.
+</ResponseField>
+
+<ResponseField name="tables" type="array" required>
+  Array of table and view objects. Each object contains:
+  - `schema` (string): Schema name containing the table/view
+  - `name` (string): Table or view name
+  - `type` (string): Either "table" or "view"
+  - `comment` (string | null): User-defined comment, or null if not set
+</ResponseField>
+
+<ResponseField name="tableCount" type="integer" required>
+  Number of tables in the results.
+</ResponseField>
+
+<ResponseField name="viewCount" type="integer" required>
+  Number of views in the results.
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message when success is false.
+</ResponseField>
+
+<ResponseField name="errorType" type="string">
+  Type of error that occurred.
+</ResponseField>
+
+## Examples
+
+### List Tables in Current Database
+
+**Request:**
+
+```json
+{}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "database": "main",
+  "schema": "all",
+  "tables": [
+    {
+      "schema": "main",
+      "name": "customers",
+      "type": "table",
+      "comment": "Customer master data"
+    },
+    {
+      "schema": "main",
+      "name": "orders",
+      "type": "table",
+      "comment": "Order transactions"
+    },
+    {
+      "schema": "main",
+      "name": "products",
+      "type": "table",
+      "comment": null
+    },
+    {
+      "schema": "main",
+      "name": "active_customers",
+      "type": "view",
+      "comment": "View of customers with recent activity"
+    }
+  ],
+  "tableCount": 3,
+  "viewCount": 1
+}
+```
+
+### List Tables in Specific Database
+
+**Request:**
+
+```json
+{
+  "database": "analytics"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "database": "analytics",
+  "schema": "all",
+  "tables": [
+    {
+      "schema": "main",
+      "name": "daily_metrics",
+      "type": "table",
+      "comment": "Aggregated daily metrics"
+    },
+    {
+      "schema": "main",
+      "name": "user_cohorts",
+      "type": "table",
+      "comment": null
+    },
+    {
+      "schema": "staging",
+      "name": "raw_events",
+      "type": "table",
+      "comment": "Raw event data from ingestion"
+    }
+  ],
+  "tableCount": 3,
+  "viewCount": 0
+}
+```
+
+### List Tables in Specific Schema
+
+**Request:**
+
+```json
+{
+  "database": "analytics",
+  "schema": "staging"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "database": "analytics",
+  "schema": "staging",
+  "tables": [
+    {
+      "schema": "staging",
+      "name": "raw_events",
+      "type": "table",
+      "comment": "Raw event data from ingestion"
+    },
+    {
+      "schema": "staging",
+      "name": "temp_imports",
+      "type": "table",
+      "comment": null
+    }
+  ],
+  "tableCount": 2,
+  "viewCount": 0
+}
+```
+
+### MotherDuck Database
+
+**Request:**
+
+```json
+{
+  "database": "my_db"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "database": "my_db",
+  "schema": "all",
+  "tables": [
+    {
+      "schema": "main",
+      "name": "sales_data",
+      "type": "table",
+      "comment": "Sales transactions from CRM"
+    },
+    {
+      "schema": "main",
+      "name": "customer_segments",
+      "type": "view",
+      "comment": "Customer segmentation analysis"
+    }
+  ],
+  "tableCount": 1,
+  "viewCount": 1
+}
+```
+
+### Empty Database
+
+**Request:**
+
+```json
+{
+  "database": "empty_db"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "database": "empty_db",
+  "schema": "all",
+  "tables": [],
+  "tableCount": 0,
+  "viewCount": 0
+}
+```
+
+### Error Response
+
+**Request:**
+
+```json
+{
+  "database": "nonexistent_db"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": false,
+  "error": "Catalog Error: Database with name nonexistent_db does not exist!",
+  "errorType": "CatalogException"
+}
+```
+
+## Default Behavior
+
+<Info>
+  **Current Database**: When no `database` parameter is provided, the tool automatically uses `current_database()` to determine which database to query. This is typically "main" for local DuckDB files, or your default MotherDuck database.
+</Info>
+
+<Info>
+  **All Schemas**: When no `schema` parameter is provided, tables and views from all schemas are returned. Most databases use the "main" schema by default, but you may see tables in other schemas like "information_schema", "pg_catalog", or custom schemas.
+</Info>
+
+## Tool Annotations
+
+<Note>
+  This tool is always read-only with `readOnlyHint: true` and `destructiveHint: false`, regardless of server mode.
+</Note>
+
+## Related Tools
+
+- Use [list_databases](/api-reference/tools/list-databases) to discover available databases first
+- Use [list_columns](/api-reference/tools/list-columns) to see the structure of a specific table
+- Use [execute_query](/api-reference/tools/execute-query) to query data from discovered tables

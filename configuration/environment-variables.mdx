@@ -1,0 +1,526 @@
+---
+title: "Environment Variables"
+description: "Complete reference for all environment variables supported by MCP Server MotherDuck"
+icon: "key"
+---
+
+## Overview
+
+All command-line parameters can be configured via environment variables. This is particularly useful for:
+- Storing sensitive credentials (tokens, API keys) outside of configuration files
+- Container deployments (Docker, Kubernetes)
+- CI/CD pipelines
+- Client configurations that support environment variable injection
+
+<Note>
+  Command-line parameters take precedence over environment variables when both are specified.
+</Note>
+
+## Authentication Variables
+
+These environment variables handle authentication credentials for MotherDuck and cloud storage.
+
+### MotherDuck Authentication
+
+<ParamField path="motherduck_token" type="string">
+  MotherDuck access token for authentication.
+  
+  Alternative names: `MOTHERDUCK_TOKEN` (uppercase version)
+  
+  Command-line equivalent: `--motherduck-token`
+  
+  **Usage:**
+  ```bash
+  export motherduck_token="your_token_here"
+  mcp-server-motherduck --db-path md:
+  ```
+  
+  **In client configuration:**
+  ```json
+  {
+    "mcpServers": {
+      "MotherDuck": {
+        "command": "uvx",
+        "args": ["mcp-server-motherduck", "--db-path", "md:"],
+        "env": {
+          "motherduck_token": "your_token_here"
+        }
+      }
+    }
+  }
+  ```
+  
+  <Note>
+    For read-only connections, use a [read-scaling token](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/read-scaling/#creating-a-read-scaling-token). Regular tokens require `--read-write` mode.
+  </Note>
+</ParamField>
+
+<ParamField path="MOTHERDUCK_TOKEN" type="string">
+  Alternative uppercase version of `motherduck_token`.
+  
+  Functionally identical to `motherduck_token`. The server checks for both variables.
+  
+  **Usage:**
+  ```bash
+  export MOTHERDUCK_TOKEN="your_token_here"
+  mcp-server-motherduck --db-path md:
+  ```
+</ParamField>
+
+### AWS Credentials (for S3 Access)
+
+Required when connecting to DuckDB files hosted on Amazon S3.
+
+<ParamField path="AWS_ACCESS_KEY_ID" type="string">
+  AWS access key ID for S3 authentication.
+  
+  **Usage:**
+  ```bash
+  export AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE"
+  export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  export AWS_DEFAULT_REGION="us-west-2"
+  
+  mcp-server-motherduck --db-path s3://my-bucket/data.duckdb
+  ```
+</ParamField>
+
+<ParamField path="AWS_SECRET_ACCESS_KEY" type="string">
+  AWS secret access key for S3 authentication.
+  
+  Used in conjunction with `AWS_ACCESS_KEY_ID`.
+</ParamField>
+
+<ParamField path="AWS_SESSION_TOKEN" type="string">
+  AWS session token for temporary credentials.
+  
+  Required when using:
+  - IAM roles
+  - AWS SSO
+  - EC2 instance profiles
+  - Temporary security credentials
+  
+  **Usage:**
+  ```bash
+  export AWS_ACCESS_KEY_ID="ASIAIOSFODNN7EXAMPLE"
+  export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  export AWS_SESSION_TOKEN="FwoGZXIvYXdzEBYaDJ..."
+  export AWS_DEFAULT_REGION="us-west-2"
+  
+  mcp-server-motherduck --db-path s3://my-bucket/data.duckdb
+  ```
+</ParamField>
+
+<ParamField path="AWS_DEFAULT_REGION" type="string">
+  AWS region for S3 connections.
+  
+  Specifies which AWS region to use when accessing S3-hosted databases.
+  
+  **Common values:** `us-east-1`, `us-west-2`, `eu-west-1`, `ap-southeast-1`
+</ParamField>
+
+## MCP Configuration Variables
+
+These environment variables correspond to command-line parameters and control server behavior.
+
+### Connection Configuration
+
+<ParamField path="MCP_DB_PATH" type="string" default=":memory:">
+  Database path (local file, MotherDuck, or S3 URL).
+  
+  Command-line equivalent: `--db-path`
+  
+  **Examples:**
+  ```bash
+  # In-memory database
+  export MCP_DB_PATH=":memory:"
+  
+  # Local file
+  export MCP_DB_PATH="/data/analytics.duckdb"
+  
+  # MotherDuck
+  export MCP_DB_PATH="md:production_db"
+  
+  # S3-hosted database
+  export MCP_DB_PATH="s3://my-bucket/data.duckdb"
+  ```
+</ParamField>
+
+<ParamField path="MCP_MOTHERDUCK_CONNECTION_PARAMETERS" type="string" default="session_hint=mcp&dbinstance_inactivity_ttl=0s">
+  Additional MotherDuck connection string parameters.
+  
+  Command-line equivalent: `--motherduck-connection-parameters`
+  
+  **Usage:**
+  ```bash
+  export MCP_MOTHERDUCK_CONNECTION_PARAMETERS="session_hint=my_app&dbinstance_inactivity_ttl=1h"
+  ```
+</ParamField>
+
+### Security Configuration
+
+<ParamField path="MCP_READ_WRITE" type="boolean" default="false">
+  Enable write access to the database.
+  
+  Command-line equivalent: `--read-write`
+  
+  **Values:** `true`, `false`, `1`, `0`
+  
+  **Usage:**
+  ```bash
+  export MCP_READ_WRITE="true"
+  mcp-server-motherduck --db-path md:
+  ```
+</ParamField>
+
+<ParamField path="MCP_SAAS_MODE" type="boolean" default="false">
+  Enable MotherDuck SaaS mode (restricts local filesystem access).
+  
+  Command-line equivalent: `--motherduck-saas-mode`
+  
+  **Values:** `true`, `false`, `1`, `0`
+  
+  **Usage:**
+  ```bash
+  export MCP_SAAS_MODE="true"
+  mcp-server-motherduck --db-path md:
+  ```
+</ParamField>
+
+<ParamField path="MCP_ALLOW_SWITCH_DATABASES" type="boolean" default="false">
+  Enable the `switch_database_connection` tool.
+  
+  Command-line equivalent: `--allow-switch-databases`
+  
+  **Values:** `true`, `false`, `1`, `0`
+  
+  **Usage:**
+  ```bash
+  export MCP_ALLOW_SWITCH_DATABASES="true"
+  ```
+</ParamField>
+
+<ParamField path="MCP_INIT_SQL" type="string">
+  SQL file path or SQL string to execute on startup.
+  
+  Command-line equivalent: `--init-sql`
+  
+  **Usage:**
+  ```bash
+  # From file
+  export MCP_INIT_SQL="/path/to/init.sql"
+  
+  # SQL string
+  export MCP_INIT_SQL="INSTALL httpfs; LOAD httpfs;"
+  ```
+</ParamField>
+
+### Performance Configuration
+
+<ParamField path="MCP_MAX_ROWS" type="integer" default="1024">
+  Maximum number of rows to return from queries.
+  
+  Command-line equivalent: `--max-rows`
+  
+  **Usage:**
+  ```bash
+  export MCP_MAX_ROWS="5000"
+  ```
+</ParamField>
+
+<ParamField path="MCP_MAX_CHARS" type="integer" default="50000">
+  Maximum number of characters in query results.
+  
+  Command-line equivalent: `--max-chars`
+  
+  **Usage:**
+  ```bash
+  export MCP_MAX_CHARS="100000"
+  ```
+</ParamField>
+
+<ParamField path="MCP_QUERY_TIMEOUT" type="integer" default="-1">
+  Query execution timeout in seconds (-1 to disable).
+  
+  Command-line equivalent: `--query-timeout`
+  
+  **Usage:**
+  ```bash
+  export MCP_QUERY_TIMEOUT="30"
+  ```
+</ParamField>
+
+<ParamField path="MCP_EPHEMERAL_CONNECTIONS" type="boolean" default="true">
+  Use temporary connections for read-only local DuckDB files.
+  
+  Command-line equivalent: `--ephemeral-connections` / `--no-ephemeral-connections`
+  
+  **Values:** `true`, `false`, `1`, `0`
+  
+  **Usage:**
+  ```bash
+  export MCP_EPHEMERAL_CONNECTIONS="false"
+  ```
+</ParamField>
+
+### Transport Configuration
+
+<ParamField path="MCP_TRANSPORT" type="string" default="stdio">
+  Transport type for the MCP server.
+  
+  Command-line equivalent: `--transport`
+  
+  **Values:** `stdio`, `http`, `sse`, `stream`
+  
+  **Usage:**
+  ```bash
+  export MCP_TRANSPORT="http"
+  export MCP_HOST="0.0.0.0"
+  export MCP_PORT="8080"
+  ```
+</ParamField>
+
+<ParamField path="MCP_STATELESS_HTTP" type="boolean" default="false">
+  Use stateless Streamable HTTP.
+  
+  Command-line equivalent: `--stateless-http`
+  
+  **Values:** `true`, `false`, `1`, `0`
+  
+  **Usage:**
+  ```bash
+  export MCP_TRANSPORT="http"
+  export MCP_STATELESS_HTTP="true"
+  ```
+</ParamField>
+
+<ParamField path="MCP_HOST" type="string" default="127.0.0.1">
+  Host to bind the MCP server (HTTP transport only).
+  
+  Command-line equivalent: `--host`
+  
+  **Usage:**
+  ```bash
+  export MCP_HOST="0.0.0.0"
+  ```
+</ParamField>
+
+<ParamField path="MCP_PORT" type="integer" default="8000">
+  Port to listen on (HTTP transport only).
+  
+  Command-line equivalent: `--port`
+  
+  **Usage:**
+  ```bash
+  export MCP_PORT="8080"
+  ```
+</ParamField>
+
+### System Configuration
+
+<ParamField path="HOME" type="string">
+  Home directory used by DuckDB for extensions and configuration.
+  
+  Can be overridden with `--home-dir` command-line parameter.
+  
+  **Usage:**
+  ```bash
+  export HOME="/custom/home/directory"
+  ```
+</ParamField>
+
+## Complete Configuration Examples
+
+### Example 1: MotherDuck Read-Write via Environment Variables
+
+```bash
+# Set environment variables
+export MCP_DB_PATH="md:production_db"
+export motherduck_token="your_token_here"
+export MCP_READ_WRITE="true"
+export MCP_MAX_ROWS="2048"
+export MCP_QUERY_TIMEOUT="30"
+
+# Run server
+mcp-server-motherduck
+```
+
+### Example 2: S3-Hosted Database with AWS Credentials
+
+```bash
+# Set AWS credentials
+export AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE"
+export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+export AWS_DEFAULT_REGION="us-west-2"
+
+# Set MCP configuration
+export MCP_DB_PATH="s3://my-data-lake/analytics.duckdb"
+export MCP_MAX_ROWS="5000"
+
+# Run server
+mcp-server-motherduck
+```
+
+### Example 3: Docker Container Configuration
+
+```dockerfile
+# Dockerfile
+FROM python:3.11-slim
+RUN pip install mcp-server-motherduck
+
+# Set default environment variables
+ENV MCP_DB_PATH=":memory:"
+ENV MCP_READ_WRITE="true"
+ENV MCP_TRANSPORT="http"
+ENV MCP_HOST="0.0.0.0"
+ENV MCP_PORT="8000"
+
+CMD ["mcp-server-motherduck"]
+```
+
+```bash
+# Run container with environment overrides
+docker run -p 8000:8000 \
+  -e MCP_DB_PATH="md:" \
+  -e motherduck_token="your_token" \
+  mcp-motherduck
+```
+
+### Example 4: Client Configuration with Environment Variables
+
+**Claude Desktop / VS Code (`config.json`):**
+
+```json
+{
+  "mcpServers": {
+    "MotherDuck Production": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck"],
+      "env": {
+        "MCP_DB_PATH": "md:production_db",
+        "motherduck_token": "your_read_scaling_token",
+        "MCP_MAX_ROWS": "2048",
+        "MCP_QUERY_TIMEOUT": "30"
+      }
+    },
+    "Local Analytics": {
+      "command": "uvx",
+      "args": ["mcp-server-motherduck"],
+      "env": {
+        "MCP_DB_PATH": "/Users/you/data/analytics.duckdb",
+        "MCP_READ_WRITE": "true",
+        "MCP_EPHEMERAL_CONNECTIONS": "false"
+      }
+    }
+  }
+}
+```
+
+### Example 5: Kubernetes Deployment with Secrets
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: motherduck-credentials
+type: Opaque
+stringData:
+  motherduck-token: "your_token_here"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-motherduck
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-motherduck
+  template:
+    metadata:
+      labels:
+        app: mcp-motherduck
+    spec:
+      containers:
+      - name: mcp-server
+        image: python:3.11-slim
+        command: ["sh", "-c", "pip install mcp-server-motherduck && mcp-server-motherduck"]
+        env:
+        - name: MCP_TRANSPORT
+          value: "http"
+        - name: MCP_HOST
+          value: "0.0.0.0"
+        - name: MCP_PORT
+          value: "8000"
+        - name: MCP_DB_PATH
+          value: "md:"
+        - name: motherduck_token
+          valueFrom:
+            secretKeyRef:
+              name: motherduck-credentials
+              key: motherduck-token
+        - name: MCP_MAX_ROWS
+          value: "1024"
+        - name: MCP_QUERY_TIMEOUT
+          value: "30"
+        ports:
+        - containerPort: 8000
+```
+
+## Environment Variable Priority
+
+When the same configuration is specified in multiple places, the following priority order applies (highest to lowest):
+
+1. **Command-line parameters** (e.g., `--db-path md:`)
+2. **Environment variables** (e.g., `MCP_DB_PATH=md:`)
+3. **Default values** (e.g., `:memory:` for `--db-path`)
+
+**Example:**
+```bash
+# Environment variable sets db-path to md:
+export MCP_DB_PATH="md:"
+
+# Command-line parameter overrides it to :memory:
+mcp-server-motherduck --db-path :memory: --read-write
+
+# Result: Server uses :memory: database
+```
+
+## Security Best Practices
+
+<Warning>
+  Never commit credentials or tokens to version control. Use environment variables, secret managers, or secure configuration files.
+</Warning>
+
+### Recommendations
+
+1. **Use environment variables for secrets**: Store `motherduck_token` and AWS credentials in environment variables, not in configuration files.
+
+2. **Use secret management tools**:
+   - AWS Secrets Manager / Parameter Store
+   - HashiCorp Vault
+   - Kubernetes Secrets
+   - Docker Secrets
+
+3. **Restrict file permissions**: If storing credentials in files, set restrictive permissions:
+   ```bash
+   chmod 600 ~/.env
+   ```
+
+4. **Use read-scaling tokens**: For read-only MotherDuck access, use read-scaling tokens instead of full access tokens.
+
+5. **Separate environments**: Use different tokens/credentials for development, staging, and production.
+
+**Example with `.env` file (not committed to git):**
+
+```bash
+# .env file (add to .gitignore)
+motherduck_token="your_token_here"
+MCP_DB_PATH="md:production_db"
+MCP_MAX_ROWS="2048"
+```
+
+```bash
+# Load and run
+source .env
+mcp-server-motherduck
+```
