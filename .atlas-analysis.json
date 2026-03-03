@@ -1,0 +1,82 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "MCP Server MotherDuck",
+  "projectDescription": "Local MCP server for DuckDB and MotherDuck enabling SQL analytics for AI assistants and IDEs",
+  "theme": "aspen",
+  "primaryColor": "#FDB515",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/command-line-parameters",
+              "configuration/environment-variables",
+              "configuration/client-setup"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/connection-modes",
+              "guides/read-only-vs-read-write",
+              "guides/security",
+              "guides/troubleshooting"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-queries",
+              "examples/motherduck-integration",
+              "examples/local-files",
+              "examples/s3-databases"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Tools",
+            "pages": [
+              "api-reference/tools/execute-query",
+              "api-reference/tools/list-databases",
+              "api-reference/tools/list-tables",
+              "api-reference/tools/list-columns",
+              "api-reference/tools/switch-database-connection"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Execute SQL queries via DuckDB/MotherDuck",
+    "Support for local files, in-memory, S3, and MotherDuck databases",
+    "Read-only and read-write modes with security controls",
+    "Browse database catalogs (databases, tables, columns)",
+    "Switch between databases at runtime",
+    "MCP protocol integration for AI assistants"
+  ],
+  "publicApiSurface": [
+    "execute_query",
+    "list_databases",
+    "list_tables",
+    "list_columns",
+    "switch_database_connection"
+  ]
+}
